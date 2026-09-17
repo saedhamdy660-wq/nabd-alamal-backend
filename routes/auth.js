@@ -1,6 +1,7 @@
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import { users } from "../data/store.js";
+import { createToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -8,11 +9,9 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
 );
 
-// ============================================================
-// POST /api/auth/register
-// إنشاء حساب جديد
-// ============================================================
-
+// =========================
+// Register
+// =========================
 router.post("/register", (req, res) => {
   const {
     name,
@@ -26,19 +25,11 @@ router.post("/register", (req, res) => {
     chronicDisease,
   } = req.body;
 
-  // ----------------------------------------------------------
-  // التحقق من البيانات الأساسية
-  // ----------------------------------------------------------
-
   if (!name || !email || !password) {
     return res.status(400).json({
       error: "الاسم والبريد الإلكتروني وكلمة المرور مطلوبون",
     });
   }
-
-  // ----------------------------------------------------------
-  // التأكد أن البريد غير مستخدم
-  // ----------------------------------------------------------
 
   if (users.find((u) => u.email === email)) {
     return res.status(409).json({
@@ -46,24 +37,15 @@ router.post("/register", (req, res) => {
     });
   }
 
-  // ----------------------------------------------------------
-  // إنشاء المستخدم
-  // ----------------------------------------------------------
-
   const newUser = {
     id: "u" + (users.length + 1),
-
     name: name.trim(),
     email: email.trim(),
-
     phone: phone || "",
     nationalId: nationalId || "",
-
     password,
-
     accountType: accountType || "user",
 
-    // بيانات المتبرع
     bloodType:
       accountType === "donor"
         ? bloodType || ""
@@ -79,44 +61,31 @@ router.post("/register", (req, res) => {
         ? Boolean(chronicDisease)
         : false,
 
-    // الموقع الافتراضي حاليًا
     lat: 30.0444,
     lng: 31.2357,
 
-    // بيانات التحقق
     phoneVerified: false,
     identityVerified: false,
     verificationStatus: "pending",
   };
 
-  // ----------------------------------------------------------
-  // إضافة المستخدم إلى قاعدة البيانات المؤقتة
-  // ----------------------------------------------------------
-
   users.push(newUser);
 
-  // ----------------------------------------------------------
-  // عدم إرسال كلمة المرور للـ Frontend
-  // ----------------------------------------------------------
+  const { password: _pw, ...safeUser } = newUser;
 
-  const {
-    password: _pw,
-    ...safeUser
-  } = newUser;
+  const token = createToken(newUser.id);
 
-  res.status(201).json(safeUser);
+  res.status(201).json({
+    ...safeUser,
+    token,
+  });
 });
 
-// ============================================================
-// POST /api/auth/login
-// تسجيل الدخول
-// ============================================================
-
+// =========================
+// Login
+// =========================
 router.post("/login", (req, res) => {
-  const {
-    email,
-    password,
-  } = req.body;
+  const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({
@@ -136,28 +105,22 @@ router.post("/login", (req, res) => {
     });
   }
 
-  // ----------------------------------------------------------
-  // عدم إرسال كلمة المرور
-  // ----------------------------------------------------------
+  const { password: _pw, ...safeUser } = found;
 
-  const {
-    password: _pw,
-    ...safeUser
-  } = found;
+  const token = createToken(found.id);
 
-  res.json(safeUser);
+  res.json({
+    ...safeUser,
+    token,
+  });
 });
 
-// ============================================================
-// POST /api/auth/google
-// تسجيل الدخول بواسطة Google
-// ============================================================
-
+// =========================
+// Google Login
+// =========================
 router.post("/google", async (req, res) => {
   try {
-    const {
-      credential,
-    } = req.body;
+    const { credential } = req.body;
 
     if (!credential) {
       return res.status(400).json({
@@ -176,10 +139,6 @@ router.post("/google", async (req, res) => {
       });
     }
 
-    // --------------------------------------------------------
-    // التحقق من Google ID Token
-    // --------------------------------------------------------
-
     const ticket =
       await googleClient.verifyIdToken({
         idToken: credential,
@@ -187,8 +146,7 @@ router.post("/google", async (req, res) => {
           process.env.GOOGLE_CLIENT_ID,
       });
 
-    const payload =
-      ticket.getPayload();
+    const payload = ticket.getPayload();
 
     if (!payload) {
       return res.status(401).json({
@@ -211,60 +169,36 @@ router.post("/google", async (req, res) => {
       });
     }
 
-    // --------------------------------------------------------
-    // البحث عن المستخدم
-    // --------------------------------------------------------
-
     let found = users.find(
       (u) => u.email === email
     );
 
-    // --------------------------------------------------------
-    // إنشاء حساب جديد إذا لم يكن موجودًا
-    // --------------------------------------------------------
-
     if (!found) {
       const newUser = {
-        id:
-          "u" +
-          (users.length + 1),
-
+        id: "u" + (users.length + 1),
         name:
           name ||
           email.split("@")[0],
-
         email,
-
         phone: "",
         nationalId: "",
-
         password: "",
-
         accountType: "user",
-
         bloodType: "",
         lastDonation: "",
         chronicDisease: false,
-
         lat: 30.0444,
         lng: 31.2357,
-
         googleId,
         avatar: picture || "",
-
         phoneVerified: false,
         identityVerified: false,
         verificationStatus: "pending",
       };
 
       users.push(newUser);
-
       found = newUser;
     } else {
-      // ------------------------------------------------------
-      // تحديث بيانات Google للحساب الموجود
-      // ------------------------------------------------------
-
       found.googleId =
         found.googleId || googleId;
 
@@ -273,17 +207,14 @@ router.post("/google", async (req, res) => {
       }
     }
 
-    // --------------------------------------------------------
-    // عدم إرسال كلمة المرور
-    // --------------------------------------------------------
+    const { password: _pw, ...safeUser } = found;
 
-    const {
-      password: _pw,
-      ...safeUser
-    } = found;
+    const token = createToken(found.id);
 
-    res.json(safeUser);
-
+    res.json({
+      ...safeUser,
+      token,
+    });
   } catch (error) {
     console.error(
       "Google login error:",
