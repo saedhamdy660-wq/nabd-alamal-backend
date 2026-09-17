@@ -1,7 +1,6 @@
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
-import { users } from "../data/store.js";
-import { createToken } from "../middleware/auth.js";
+import { users, donors } from "../data/store.js";
 
 const router = express.Router();
 
@@ -31,7 +30,9 @@ router.post("/register", (req, res) => {
     });
   }
 
-  if (users.find((u) => u.email === email)) {
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (users.find((u) => u.email.toLowerCase() === cleanEmail)) {
     return res.status(409).json({
       error: "يوجد حساب بهذا البريد الإلكتروني بالفعل",
     });
@@ -40,7 +41,7 @@ router.post("/register", (req, res) => {
   const newUser = {
     id: "u" + (users.length + 1),
     name: name.trim(),
-    email: email.trim(),
+    email: cleanEmail,
     phone: phone || "",
     nationalId: nationalId || "",
     password,
@@ -71,14 +72,27 @@ router.post("/register", (req, res) => {
 
   users.push(newUser);
 
+  // =========================
+  // Add user to donors list
+  // =========================
+  if (accountType === "donor") {
+    donors.push({
+      id: "d" + (donors.length + 1),
+      userId: newUser.id,
+      name: newUser.name,
+      bloodType: newUser.bloodType,
+      distanceKm: 0,
+      lat: newUser.lat,
+      lng: newUser.lng,
+      donationsCount: 0,
+      lastDonation: newUser.lastDonation,
+      verified: false,
+    });
+  }
+
   const { password: _pw, ...safeUser } = newUser;
 
-  const token = createToken(newUser.id);
-
-  res.status(201).json({
-    ...safeUser,
-    token,
-  });
+  res.status(201).json(safeUser);
 });
 
 // =========================
@@ -93,9 +107,11 @@ router.post("/login", (req, res) => {
     });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
   const found = users.find(
     (u) =>
-      u.email === email &&
+      u.email.toLowerCase() === cleanEmail &&
       u.password === password
   );
 
@@ -107,12 +123,7 @@ router.post("/login", (req, res) => {
 
   const { password: _pw, ...safeUser } = found;
 
-  const token = createToken(found.id);
-
-  res.json({
-    ...safeUser,
-    token,
-  });
+  res.json(safeUser);
 });
 
 // =========================
@@ -142,8 +153,7 @@ router.post("/google", async (req, res) => {
     const ticket =
       await googleClient.verifyIdToken({
         idToken: credential,
-        audience:
-          process.env.GOOGLE_CLIENT_ID,
+        audience: process.env.GOOGLE_CLIENT_ID,
       });
 
     const payload = ticket.getPayload();
@@ -169,8 +179,10 @@ router.post("/google", async (req, res) => {
       });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     let found = users.find(
-      (u) => u.email === email
+      (u) => u.email.toLowerCase() === cleanEmail
     );
 
     if (!found) {
@@ -178,8 +190,8 @@ router.post("/google", async (req, res) => {
         id: "u" + (users.length + 1),
         name:
           name ||
-          email.split("@")[0],
-        email,
+          cleanEmail.split("@")[0],
+        email: cleanEmail,
         phone: "",
         nationalId: "",
         password: "",
@@ -209,12 +221,7 @@ router.post("/google", async (req, res) => {
 
     const { password: _pw, ...safeUser } = found;
 
-    const token = createToken(found.id);
-
-    res.json({
-      ...safeUser,
-      token,
-    });
+    res.json(safeUser);
   } catch (error) {
     console.error(
       "Google login error:",
@@ -222,8 +229,7 @@ router.post("/google", async (req, res) => {
     );
 
     res.status(401).json({
-      error:
-        "فشل تسجيل الدخول بواسطة Google",
+      error: "فشل تسجيل الدخول بواسطة Google",
     });
   }
 });
