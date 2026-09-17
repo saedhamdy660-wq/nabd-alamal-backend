@@ -13,16 +13,34 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// =========================
+// Health Check
+// =========================
 app.get("/", (req, res) => {
   res.send("Nabd Al-Amal API is running ✅");
 });
 
+// =========================
+// API Routes
+// =========================
 app.use("/api/blood", bloodRoutes);
+
 app.use("/api/medicines", medicineRoutes);
-app.use("/api/notifications", notificationRoutes);
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
 app.use("/api/users", userRoutes);
+
 app.use("/api/auth", authRoutes);
 
+// =========================
+// Start Server
+// =========================
 app.listen(PORT, () => {
-  console.log(`🚑 Nabd Al-Amal backend running on http://localhost:${PORT}`);
+  console.log(
+    `🚑 Nabd Al-Amal backend running on port ${PORT}`
+  );
 });
