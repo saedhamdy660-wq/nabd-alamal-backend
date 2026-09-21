@@ -1,4 +1,15 @@
-// In-memory data store (replace later with a real database like MongoDB/PostgreSQL)
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DB_FILE = path.join(__dirname, "db.json");
+
+// ============================================================
+// البيانات الافتراضية
+// ============================================================
 
 export const user = {
   id: "u1",
@@ -9,8 +20,6 @@ export const user = {
   lng: 31.2357,
 };
 
-// Demo-only user list for login/signup
-// ملاحظة: في التطبيق الحقيقي يجب تخزين كلمات المرور بشكل مشفر
 export const users = [
   { ...user, password: "123456" },
 ];
@@ -18,13 +27,12 @@ export const users = [
 // ============================================================
 // المتبرعون
 // ============================================================
-// لا يوجد متبرعون تجريبيون هنا.
-// أي مستخدم يسجل Account Type = donor
-// سيتم إضافته تلقائيًا من routes/auth.js
-// وسيظهر في قائمة المتبرعين القريبين.
-// ============================================================
 
 export const donors = [];
+
+// ============================================================
+// طلبات الدم
+// ============================================================
 
 export const bloodRequests = [
   {
@@ -66,38 +74,12 @@ export const bloodRequests = [
   },
 ];
 
-/*
-  ============================================================
-  الأدوية
-  ============================================================
-
-  9 أقسام × 5 أدوية = 45 دواء
-
-  الأقسام:
-  1. الأورام
-  2. الضغط والقلب
-  3. السكري
-  4. الجهاز الهضمي
-  5. البرد والحساسية
-  6. مسكنات
-  7. المضادات الحيوية
-  8. الأدوية الجلدية
-  9. الجهاز التنفسي
-
-  تم حذف:
-  - الإنسولين
-  - فيتامين D
-
-  مهم:
-  قيمة category لازم تطابق أسماء الأقسام الموجودة
-  في الفرونت إند بالضبط.
-*/
+// ============================================================
+// الأدوية
+// ============================================================
 
 export const medicines = [
-  // ============================================================
-  // الأورام - 5 أدوية
-  // ============================================================
-
+  // الأورام
   {
     id: "m1",
     name: "تاموكسيفين 20 مجم",
@@ -149,10 +131,7 @@ export const medicines = [
     pickupLocation: "صيدلية الرحمة",
   },
 
-  // ============================================================
-  // الضغط والقلب - 5 أدوية
-  // ============================================================
-
+  // الضغط والقلب
   {
     id: "m6",
     name: "أملوديبين 5 مجم",
@@ -204,10 +183,7 @@ export const medicines = [
     pickupLocation: "صيدلية الأمل",
   },
 
-  // ============================================================
-  // السكري - 5 أدوية
-  // ============================================================
-
+  // السكري
   {
     id: "m11",
     name: "ميتفورمين 500 مجم",
@@ -259,10 +235,7 @@ export const medicines = [
     pickupLocation: "صيدلية الحياة",
   },
 
-  // ============================================================
-  // الجهاز الهضمي - 5 أدوية
-  // ============================================================
-
+  // الجهاز الهضمي
   {
     id: "m16",
     name: "أوميبرازول 20 مجم",
@@ -314,10 +287,7 @@ export const medicines = [
     pickupLocation: "صيدلية الرحمة",
   },
 
-  // ============================================================
-  // البرد والحساسية - 5 أدوية
-  // ============================================================
-
+  // البرد والحساسية
   {
     id: "m21",
     name: "سيتيريزين 10 مجم",
@@ -369,10 +339,7 @@ export const medicines = [
     pickupLocation: "صيدلية الأمل",
   },
 
-  // ============================================================
-  // مسكنات - 5 أدوية
-  // ============================================================
-
+  // مسكنات
   {
     id: "m26",
     name: "باراسيتامول 500 مجم",
@@ -424,10 +391,7 @@ export const medicines = [
     pickupLocation: "صيدلية الحياة",
   },
 
-  // ============================================================
-  // المضادات الحيوية - 5 أدوية
-  // ============================================================
-
+  // المضادات الحيوية
   {
     id: "m31",
     name: "أموكسيسيلين 500 مجم",
@@ -479,10 +443,7 @@ export const medicines = [
     pickupLocation: "صيدلية الأمل",
   },
 
-  // ============================================================
-  // الأدوية الجلدية - 5 أدوية
-  // ============================================================
-
+  // الأدوية الجلدية
   {
     id: "m36",
     name: "كريم بيتاميثازون",
@@ -534,10 +495,7 @@ export const medicines = [
     pickupLocation: "صيدلية الحياة",
   },
 
-  // ============================================================
-  // الجهاز التنفسي - 5 أدوية
-  // ============================================================
-
+  // الجهاز التنفسي
   {
     id: "m41",
     name: "بخاخ فنتولين (سالبوتامول)",
@@ -590,6 +548,10 @@ export const medicines = [
   },
 ];
 
+// ============================================================
+// طلباتي
+// ============================================================
+
 export const myRequests = [
   {
     id: "r1",
@@ -606,6 +568,10 @@ export const myRequests = [
     status: "مكتمل",
   },
 ];
+
+// ============================================================
+// الإشعارات
+// ============================================================
 
 export const notifications = [
   {
@@ -631,6 +597,10 @@ export const notifications = [
   },
 ];
 
+// ============================================================
+// الصيدليات
+// ============================================================
+
 export const pharmacies = [
   {
     id: "p1",
@@ -642,6 +612,10 @@ export const pharmacies = [
     lng: 31.238,
   },
 ];
+
+// ============================================================
+// المستشفيات
+// ============================================================
 
 export const hospitals = [
   {
@@ -666,3 +640,141 @@ export const hospitals = [
     lng: 31.3,
   },
 ];
+
+// ============================================================
+// الحفظ في db.json
+// ============================================================
+
+export function saveStore() {
+  const data = {
+    user,
+    users,
+    donors,
+    bloodRequests,
+    medicines,
+    myRequests,
+    notifications,
+    pharmacies,
+    hospitals,
+  };
+
+  try {
+    fs.writeFileSync(
+      DB_FILE,
+      JSON.stringify(data, null, 2),
+      "utf-8"
+    );
+  } catch (error) {
+    console.error(
+      "Failed to save database:",
+      error
+    );
+  }
+}
+
+// ============================================================
+// تحميل البيانات من db.json
+// ============================================================
+
+export function loadStore() {
+  try {
+    if (!fs.existsSync(DB_FILE)) {
+      saveStore();
+      return;
+    }
+
+    const rawData = fs.readFileSync(
+      DB_FILE,
+      "utf-8"
+    );
+
+    if (!rawData.trim()) {
+      saveStore();
+      return;
+    }
+
+    const data = JSON.parse(rawData);
+
+    if (data.user) {
+      Object.assign(user, data.user);
+    }
+
+    if (Array.isArray(data.users)) {
+      users.splice(
+        0,
+        users.length,
+        ...data.users
+      );
+    }
+
+    if (Array.isArray(data.donors)) {
+      donors.splice(
+        0,
+        donors.length,
+        ...data.donors
+      );
+    }
+
+    if (Array.isArray(data.bloodRequests)) {
+      bloodRequests.splice(
+        0,
+        bloodRequests.length,
+        ...data.bloodRequests
+      );
+    }
+
+    if (Array.isArray(data.medicines)) {
+      medicines.splice(
+        0,
+        medicines.length,
+        ...data.medicines
+      );
+    }
+
+    if (Array.isArray(data.myRequests)) {
+      myRequests.splice(
+        0,
+        myRequests.length,
+        ...data.myRequests
+      );
+    }
+
+    if (Array.isArray(data.notifications)) {
+      notifications.splice(
+        0,
+        notifications.length,
+        ...data.notifications
+      );
+    }
+
+    if (Array.isArray(data.pharmacies)) {
+      pharmacies.splice(
+        0,
+        pharmacies.length,
+        ...data.pharmacies
+      );
+    }
+
+    if (Array.isArray(data.hospitals)) {
+      hospitals.splice(
+        0,
+        hospitals.length,
+        ...data.hospitals
+      );
+    }
+
+    console.log("✅ Database loaded from db.json");
+  } catch (error) {
+    console.error(
+      "Failed to load database:",
+      error
+    );
+
+    console.log(
+      "Using default data instead."
+    );
+  }
+}
+
+// تحميل البيانات عند تشغيل السيرفر
+loadStore();
