@@ -293,8 +293,14 @@ router.post(
   (req, res) => {
     const {
       donorId,
+      donorUserId,
       action,
     } = req.body;
+
+    // الفرونت إند يرسل ID المستخدم الخاص بالمتبرع
+    // وليس ID سجل المتبرع d1 / d2 ...
+    const respondingDonorUserId =
+      donorUserId || donorId;
 
     const request =
       bloodRequests.find(
@@ -312,9 +318,11 @@ router.post(
       });
     }
 
+    // التأكد أن المتبرع الذي يرد
+    // هو صاحب الطلب فعلاً
     if (
-      request.donorId !==
-      donorId
+      request.donorUserId !==
+      respondingDonorUserId
     ) {
       return res.status(403).json({
         error:
