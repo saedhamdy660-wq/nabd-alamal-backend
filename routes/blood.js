@@ -88,7 +88,6 @@ router.post("/requests", (req, res) => {
 
   bloodRequests.push(newRequest);
 
-  // حفظ الطلب في db.json
   saveStore();
 
   res.status(201).json(newRequest);
@@ -146,8 +145,6 @@ router.post(
     }
 
     // منع إرسال طلب لمتبرع مشغول حاليًا
-    // لو available غير موجود في البيانات القديمة
-    // نعتبر المتبرع متاحًا بشكل افتراضي
     if (donor.available === false) {
       return res.status(409).json({
         error:
@@ -221,7 +218,7 @@ router.post(
       timeline: [
         {
           label:
-            "تم إرسال طلب التبرع للمتبرع",
+            "تم إرسال التنبيه للمتبرعين",
 
           time:
             now.toLocaleTimeString(
@@ -297,10 +294,6 @@ router.post(
       notification
     );
 
-    // حفظ:
-    // طلب الدم
-    // طلب المستخدم
-    // إشعار المتبرع
     saveStore();
 
     res.status(201).json({
@@ -325,8 +318,6 @@ router.post(
       action,
     } = req.body;
 
-    // الفرونت إند يرسل ID المستخدم الخاص بالمتبرع
-    // وليس ID سجل المتبرع d1 / d2 ...
     const respondingDonorUserId =
       donorUserId || donorId;
 
@@ -346,8 +337,6 @@ router.post(
       });
     }
 
-    // التأكد أن المتبرع الذي يرد
-    // هو صاحب الطلب فعلاً
     if (
       request.donorUserId !==
       respondingDonorUserId
@@ -383,7 +372,6 @@ router.post(
     const now =
       new Date();
 
-    // البحث عن سجل المتبرع
     const respondingDonor =
       donors.find(
         (donor) =>
@@ -394,10 +382,6 @@ router.post(
     if (
       action === "accept"
     ) {
-      // =========================
-      // قبول الطلب
-      // =========================
-
       request.status =
         "تم القبول";
 
@@ -413,17 +397,12 @@ router.post(
         done: true,
       });
 
-      // جعل المتبرع غير متاح مؤقتًا
-      // حتى لا يستقبل طلبات جديدة
+      // المتبرع أصبح مشغولًا
       if (respondingDonor) {
         respondingDonor.available =
           false;
       }
     } else {
-      // =========================
-      // رفض الطلب
-      // =========================
-
       request.status =
         "تم الرفض";
 
@@ -439,7 +418,7 @@ router.post(
         done: true,
       });
 
-      // عند الرفض يظل المتبرع متاحًا
+      // المتبرع يظل متاحًا
       if (respondingDonor) {
         respondingDonor.available =
           true;
@@ -461,7 +440,7 @@ router.post(
           : "تم الرفض";
     }
 
-    // تحديث إشعار المتبرع نفسه
+    // تحديث إشعار المتبرع
     const donorNotification =
       notifications.find(
         (item) =>
@@ -481,10 +460,7 @@ router.post(
         now.toISOString();
     }
 
-    // =========================
-    // إشعار جديد لصاحب الطلب
-    // =========================
-
+    // إشعار صاحب الطلب
     const requesterNotification = {
       id:
         "n" + Date.now(),
@@ -498,8 +474,6 @@ router.post(
       requestId:
         request.id,
 
-      // مهم جدًا:
-      // علشان صاحب الطلب يقدر يفتح صفحة المتبرع
       donorId:
         request.donorId,
 
@@ -534,7 +508,6 @@ router.post(
       requesterNotification
     );
 
-    // حفظ كل التغييرات
     saveStore();
 
     res.json({
@@ -542,6 +515,225 @@ router.post(
 
       notification:
         requesterNotification,
+    });
+  }
+);
+
+// =========================
+// Donation Progress
+// =========================
+
+router.post(
+  "/donation-requests/:id/progress",
+  (req, res) => {
+    const {
+      donorId,
+      stage,
+    } = req.body;
+
+    const request =
+      bloodRequests.find(
+        (item) =>
+          item.id ===
+            req.params.id &&
+          item.requestType ===
+            "direct-donation"
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "طلب التبرع غير موجود",
+      });
+    }
+
+    if (
+      request.donorUserId !==
+      donorId
+    ) {
+      return res.status(403).json({
+        error:
+          "غير مسموح لك بتحديث هذا الطلب",
+      });
+    }
+
+    const now =
+      new Date();
+
+    let newStatus = "";
+    let stageLabel = "";
+
+    // =========================
+    // المتبرع في الطريق
+    // =========================
+
+    if (
+      stage === "on_way"
+    ) {
+      if (
+        request.status !==
+        "تم القبول"
+      ) {
+        return res.status(409).json({
+          error:
+            "يجب قبول الطلب أولاً",
+        });
+      }
+
+      newStatus =
+        "المتبرع في طريقه إلى المستشفى";
+
+      stageLabel =
+        "المتبرع في طريقه إلى المستشفى";
+    }
+
+    // =========================
+    // تم الوصول
+    // =========================
+
+    if (
+      stage === "arrived"
+    ) {
+      if (
+        request.status !==
+        "المتبرع في طريقه إلى المستشفى"
+      ) {
+        return res.status(409).json({
+          error:
+            "يجب أن يبدأ المتبرع التوجه للمستشفى أولاً",
+        });
+      }
+
+      newStatus =
+        "تم الوصول إلى المستشفى";
+
+      stageLabel =
+        "تم الوصول إلى المستشفى";
+    }
+
+    // =========================
+    // تم التبرع
+    // =========================
+
+    if (
+      stage === "completed"
+    ) {
+      if (
+        request.status !==
+        "تم الوصول إلى المستشفى"
+      ) {
+        return res.status(409).json({
+          error:
+            "يجب تسجيل الوصول إلى المستشفى أولاً",
+        });
+      }
+
+      newStatus =
+        "تم التبرع بنجاح";
+
+      stageLabel =
+        "تم التبرع بنجاح";
+    }
+
+    if (
+      !newStatus ||
+      !stageLabel
+    ) {
+      return res.status(400).json({
+        error:
+          "مرحلة التبرع غير صحيحة",
+      });
+    }
+
+    request.status =
+      newStatus;
+
+    request.timeline.push({
+      label:
+        stageLabel,
+
+      time:
+        now.toLocaleTimeString(
+          "ar-EG"
+        ),
+
+      done: true,
+    });
+
+    // تحديث طلب المستخدم
+    const myRequest =
+      myRequests.find(
+        (item) =>
+          item.id ===
+          request.id
+      );
+
+    if (myRequest) {
+      myRequest.status =
+        stage === "completed"
+          ? "مكتمل"
+          : newStatus;
+    }
+
+    // =========================
+    // عند انتهاء التبرع
+    // =========================
+
+    if (
+      stage === "completed"
+    ) {
+      const donor =
+        donors.find(
+          (item) =>
+            item.userId ===
+            donorId
+        );
+
+      if (donor) {
+        donor.available =
+          true;
+      }
+
+      notifications.unshift({
+        id:
+          "n" + Date.now(),
+
+        recipientId:
+          request.requesterId,
+
+        senderId:
+          request.donorUserId,
+
+        requestId:
+          request.id,
+
+        donorId:
+          request.donorId,
+
+        kind:
+          "donation_completed",
+
+        title:
+          "تم التبرع بنجاح",
+
+        body:
+          `تمت عملية التبرع بنجاح بواسطة ${request.donorName}`,
+
+        time:
+          "الآن",
+
+        type:
+          "success",
+
+        status:
+          "completed",
+      });
+    }
+
+    saveStore();
+
+    res.json({
+      request,
     });
   }
 );
@@ -752,7 +944,6 @@ router.post(
       done: true,
     });
 
-    // حفظ التعديل
     saveStore();
 
     res.json(request);
