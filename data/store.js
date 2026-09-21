@@ -15,41 +15,16 @@ export const users = [
   { ...user, password: "123456" },
 ];
 
-export const donors = [
-  {
-    id: "d1",
-    name: "أحمد محمد",
-    bloodType: "O+",
-    distanceKm: 1.2,
-    lat: 30.05,
-    lng: 31.24,
-    donationsCount: 12,
-    lastDonation: "2026-06-10",
-    verified: true,
-  },
-  {
-    id: "d2",
-    name: "سارة علي",
-    bloodType: "O+",
-    distanceKm: 3.4,
-    lat: 30.03,
-    lng: 31.22,
-    donationsCount: 5,
-    lastDonation: "2026-08-02",
-    verified: true,
-  },
-  {
-    id: "d3",
-    name: "محمد خالد",
-    bloodType: "O+",
-    distanceKm: 4.7,
-    lat: 30.06,
-    lng: 31.2,
-    donationsCount: 2,
-    lastDonation: "2026-03-15",
-    verified: false,
-  },
-];
+// ============================================================
+// المتبرعون
+// ============================================================
+// لا يوجد متبرعون تجريبيون هنا.
+// أي مستخدم يسجل Account Type = donor
+// سيتم إضافته تلقائيًا من routes/auth.js
+// وسيظهر في قائمة المتبرعين القريبين.
+// ============================================================
+
+export const donors = [];
 
 export const bloodRequests = [
   {
