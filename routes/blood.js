@@ -47,7 +47,8 @@ router.post("/requests", (req, res) => {
 
   if (!bloodType || !hospital) {
     return res.status(400).json({
-      error: "bloodType and hospital are required",
+      error:
+        "bloodType and hospital are required",
     });
   }
 
@@ -239,7 +240,10 @@ router.post(
         "قيد الانتظار",
     });
 
+    // =========================
     // إشعار للمتبرع
+    // =========================
+
     const notification = {
       id:
         "n" + Date.now(),
@@ -251,6 +255,9 @@ router.post(
         requester.id,
 
       requestId,
+
+      donorId:
+        donor.id,
 
       kind:
         "donation_request",
@@ -424,7 +431,10 @@ router.post(
         now.toISOString();
     }
 
+    // =========================
     // إشعار جديد لصاحب الطلب
+    // =========================
+
     const requesterNotification = {
       id:
         "n" + Date.now(),
@@ -437,6 +447,11 @@ router.post(
 
       requestId:
         request.id,
+
+      // مهم جدًا:
+      // علشان صاحب الطلب يقدر يفتح صفحة المتبرع
+      donorId:
+        request.donorId,
 
       kind:
         "donation_response",
