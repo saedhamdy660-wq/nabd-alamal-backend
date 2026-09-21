@@ -7,18 +7,17 @@ router.get("/", (req, res) => {
   const userId =
     req.query.userId;
 
+  // لو مفيش مستخدم محدد
+  // لا نعرض الإشعارات الخاصة بالمستخدمين
   if (!userId) {
-    return res.json(
-      notifications
-    );
+    return res.json([]);
   }
 
   const userNotifications =
     notifications.filter(
       (notification) =>
-        !notification.recipientId ||
         notification.recipientId ===
-          userId
+        userId
     );
 
   res.json(
