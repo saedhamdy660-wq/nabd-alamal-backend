@@ -7,6 +7,7 @@ import {
   users,
   myRequests,
   notifications,
+  saveStore,
 } from "../data/store.js";
 
 const router = express.Router();
@@ -86,6 +87,9 @@ router.post("/requests", (req, res) => {
   };
 
   bloodRequests.push(newRequest);
+
+  // حفظ الطلب في db.json
+  saveStore();
 
   res.status(201).json(newRequest);
 });
@@ -281,6 +285,12 @@ router.post(
     notifications.unshift(
       notification
     );
+
+    // حفظ:
+    // طلب الدم
+    // طلب المستخدم
+    // إشعار المتبرع
+    saveStore();
 
     res.status(201).json({
       request:
@@ -483,6 +493,9 @@ router.post(
     notifications.unshift(
       requesterNotification
     );
+
+    // حفظ كل التغييرات
+    saveStore();
 
     res.json({
       request,
@@ -691,6 +704,9 @@ router.post(
 
       done: true,
     });
+
+    // حفظ التعديل
+    saveStore();
 
     res.json(request);
   }
