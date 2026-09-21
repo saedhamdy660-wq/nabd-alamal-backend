@@ -1,6 +1,10 @@
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
-import { users, donors } from "../data/store.js";
+import {
+  users,
+  donors,
+  saveStore,
+} from "../data/store.js";
 
 const router = express.Router();
 
@@ -28,7 +32,8 @@ router.post("/register", (req, res) => {
 
   if (!name || !email || !password) {
     return res.status(400).json({
-      error: "الاسم والبريد الإلكتروني وكلمة المرور مطلوبون",
+      error:
+        "الاسم والبريد الإلكتروني وكلمة المرور مطلوبون",
     });
   }
 
@@ -37,11 +42,13 @@ router.post("/register", (req, res) => {
   if (
     users.find(
       (u) =>
-        u.email.toLowerCase() === cleanEmail
+        u.email.toLowerCase() ===
+        cleanEmail
     )
   ) {
     return res.status(409).json({
-      error: "يوجد حساب بهذا البريد الإلكتروني بالفعل",
+      error:
+        "يوجد حساب بهذا البريد الإلكتروني بالفعل",
     });
   }
 
@@ -50,12 +57,19 @@ router.post("/register", (req, res) => {
 
   const newUser = {
     id: "u" + (users.length + 1),
+
     name: name.trim(),
+
     email: cleanEmail,
+
     phone: phone || "",
+
     nationalId: nationalId || "",
+
     password,
-    accountType: accountType || "user",
+
+    accountType:
+      accountType || "user",
 
     bloodType:
       accountType === "donor"
@@ -85,7 +99,9 @@ router.post("/register", (req, res) => {
       Number.isFinite(longitude),
 
     phoneVerified: false,
+
     identityVerified: false,
+
     verificationStatus: "pending",
   };
 
@@ -97,20 +113,37 @@ router.post("/register", (req, res) => {
   if (accountType === "donor") {
     donors.push({
       id: "d" + (donors.length + 1),
+
       userId: newUser.id,
+
       name: newUser.name,
+
       bloodType: newUser.bloodType,
+
       distanceKm: 0,
+
       lat: newUser.lat,
+
       lng: newUser.lng,
+
       donationsCount: 0,
+
       lastDonation: newUser.lastDonation,
+
       verified: false,
     });
   }
 
-  const { password: _pw, ...safeUser } =
-    newUser;
+  // ============================================================
+  // حفظ المستخدم والمتبرع في db.json
+  // ============================================================
+
+  saveStore();
+
+  const {
+    password: _pw,
+    ...safeUser
+  } = newUser;
 
   res.status(201).json(safeUser);
 });
@@ -119,30 +152,39 @@ router.post("/register", (req, res) => {
 // Login
 // =========================
 router.post("/login", (req, res) => {
-  const { email, password } = req.body;
+  const {
+    email,
+    password,
+  } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({
-      error: "البريد الإلكتروني وكلمة المرور مطلوبان",
+      error:
+        "البريد الإلكتروني وكلمة المرور مطلوبان",
     });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail =
+    email.trim().toLowerCase();
 
   const found = users.find(
     (u) =>
-      u.email.toLowerCase() === cleanEmail &&
+      u.email.toLowerCase() ===
+        cleanEmail &&
       u.password === password
   );
 
   if (!found) {
     return res.status(401).json({
-      error: "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+      error:
+        "البريد الإلكتروني أو كلمة المرور غير صحيحة",
     });
   }
 
-  const { password: _pw, ...safeUser } =
-    found;
+  const {
+    password: _pw,
+    ...safeUser
+  } = found;
 
   res.json(safeUser);
 });
@@ -150,112 +192,185 @@ router.post("/login", (req, res) => {
 // =========================
 // Google Login
 // =========================
-router.post("/google", async (req, res) => {
-  try {
-    const { credential } = req.body;
+router.post(
+  "/google",
+  async (req, res) => {
+    try {
+      const {
+        credential,
+      } = req.body;
 
-    if (!credential) {
-      return res.status(400).json({
-        error: "لم يتم إرسال بيانات Google",
-      });
-    }
+      if (!credential) {
+        return res.status(400).json({
+          error:
+            "لم يتم إرسال بيانات Google",
+        });
+      }
 
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      console.error(
-        "GOOGLE_CLIENT_ID is not configured"
+      if (!process.env.GOOGLE_CLIENT_ID) {
+        console.error(
+          "GOOGLE_CLIENT_ID is not configured"
+        );
+
+        return res.status(500).json({
+          error:
+            "إعدادات تسجيل الدخول بواسطة Google غير مكتملة",
+        });
+      }
+
+      const ticket =
+        await googleClient.verifyIdToken(
+          {
+            idToken: credential,
+            audience:
+              process.env.GOOGLE_CLIENT_ID,
+          }
+        );
+
+      const payload =
+        ticket.getPayload();
+
+      if (!payload) {
+        return res.status(401).json({
+          error:
+            "بيانات Google غير صالحة",
+        });
+      }
+
+      const {
+        sub: googleId,
+        email,
+        name,
+        picture,
+        email_verified,
+      } = payload;
+
+      if (
+        !email ||
+        !email_verified
+      ) {
+        return res.status(401).json({
+          error:
+            "لم يتم التحقق من البريد الإلكتروني بواسطة Google",
+        });
+      }
+
+      const cleanEmail =
+        email.trim().toLowerCase();
+
+      let found = users.find(
+        (u) =>
+          u.email.toLowerCase() ===
+          cleanEmail
       );
 
-      return res.status(500).json({
-        error:
-          "إعدادات تسجيل الدخول بواسطة Google غير مكتملة",
-      });
-    }
+      // =========================
+      // إنشاء مستخدم Google جديد
+      // =========================
+      if (!found) {
+        const newUser = {
+          id:
+            "u" +
+            (users.length + 1),
 
-    const ticket =
-      await googleClient.verifyIdToken({
-        idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
+          name:
+            name ||
+            cleanEmail.split(
+              "@"
+            )[0],
 
-    const payload = ticket.getPayload();
+          email: cleanEmail,
 
-    if (!payload) {
-      return res.status(401).json({
-        error: "بيانات Google غير صالحة",
-      });
-    }
+          phone: "",
 
-    const {
-      sub: googleId,
-      email,
-      name,
-      picture,
-      email_verified,
-    } = payload;
+          nationalId: "",
 
-    if (!email || !email_verified) {
-      return res.status(401).json({
-        error:
-          "لم يتم التحقق من البريد الإلكتروني بواسطة Google",
-      });
-    }
+          password: "",
 
-    const cleanEmail = email.trim().toLowerCase();
+          accountType: "user",
 
-    let found = users.find(
-      (u) =>
-        u.email.toLowerCase() === cleanEmail
-    );
+          bloodType: "",
 
-    if (!found) {
-      const newUser = {
-        id: "u" + (users.length + 1),
-        name:
-          name ||
-          cleanEmail.split("@")[0],
-        email: cleanEmail,
-        phone: "",
-        nationalId: "",
-        password: "",
-        accountType: "user",
-        bloodType: "",
-        lastDonation: "",
-        chronicDisease: false,
-        lat: 30.0444,
-        lng: 31.2357,
-        locationEnabled: false,
-        googleId,
-        avatar: picture || "",
-        phoneVerified: false,
-        identityVerified: false,
-        verificationStatus: "pending",
-      };
+          lastDonation: "",
 
-      users.push(newUser);
-      found = newUser;
-    } else {
-      found.googleId =
-        found.googleId || googleId;
+          chronicDisease: false,
 
-      if (picture) {
-        found.avatar = picture;
+          lat: 30.0444,
+
+          lng: 31.2357,
+
+          locationEnabled: false,
+
+          googleId,
+
+          avatar:
+            picture || "",
+
+          phoneVerified: false,
+
+          identityVerified: false,
+
+          verificationStatus:
+            "pending",
+        };
+
+        users.push(newUser);
+
+        found = newUser;
+
+        // حفظ مستخدم Google الجديد
+        saveStore();
       }
+
+      // =========================
+      // تحديث بيانات Google
+      // =========================
+      else {
+        let changed = false;
+
+        if (
+          !found.googleId
+        ) {
+          found.googleId =
+            googleId;
+
+          changed = true;
+        }
+
+        if (
+          picture &&
+          found.avatar !== picture
+        ) {
+          found.avatar =
+            picture;
+
+          changed = true;
+        }
+
+        // حفظ التعديلات لو حصل تغيير
+        if (changed) {
+          saveStore();
+        }
+      }
+
+      const {
+        password: _pw,
+        ...safeUser
+      } = found;
+
+      res.json(safeUser);
+    } catch (error) {
+      console.error(
+        "Google login error:",
+        error
+      );
+
+      res.status(401).json({
+        error:
+          "فشل تسجيل الدخول بواسطة Google",
+      });
     }
-
-    const { password: _pw, ...safeUser } =
-      found;
-
-    res.json(safeUser);
-  } catch (error) {
-    console.error(
-      "Google login error:",
-      error
-    );
-
-    res.status(401).json({
-      error: "فشل تسجيل الدخول بواسطة Google",
-    });
   }
-});
+);
 
 export default router;
