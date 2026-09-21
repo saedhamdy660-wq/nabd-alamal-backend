@@ -77,29 +77,12 @@ router.post("/requests", (req, res) => {
 // Donors
 // =========================
 
-// GET one donor
-router.get("/donors/:id", (req, res) => {
-  const donor = donors.find(
-    (d) => d.id === req.params.id
-  );
-
-  if (!donor) {
-    return res.status(404).json({
-      error: "Donor not found",
-    });
-  }
-
-  res.json(donor);
-});
+// IMPORTANT:
+// /donors/nearby MUST come before /donors/:id
+// because Express would otherwise treat "nearby"
+// as a donor ID.
 
 // GET nearby donors
-//
-// ملاحظات:
-// 1. نستبعد المستخدم نفسه إذا أرسل userId.
-// 2. نفلتر حسب فصيلة الدم إذا تم إرسالها.
-// 3. نستبعد المتبرع الذي لا يملك موقعًا صحيحًا.
-// 4. نرتب المتبرعين حسب المسافة.
-// 5. lastDonation تُرجع مع البيانات لاستخدامها في الواجهة.
 router.get("/donors/nearby", (req, res) => {
   const {
     bloodType,
@@ -137,37 +120,82 @@ router.get("/donors/nearby", (req, res) => {
     const userLat = Number(lat);
     const userLng = Number(lng);
 
-    filtered = filtered.map((donor) => {
-      const distance = calculateDistance(
-        userLat,
-        userLng,
-        Number(donor.lat),
-        Number(donor.lng)
-      );
+    if (
+      Number.isFinite(userLat) &&
+      Number.isFinite(userLng)
+    ) {
+      filtered = filtered.map((donor) => {
+        const donorLat = Number(donor.lat);
+        const donorLng = Number(donor.lng);
 
-      return {
-        ...donor,
-        distanceKm:
-          Math.round(distance * 10) / 10,
-      };
-    });
+        if (
+          !Number.isFinite(donorLat) ||
+          !Number.isFinite(donorLng)
+        ) {
+          return {
+            ...donor,
+            distanceKm: null,
+          };
+        }
+
+        const distance = calculateDistance(
+          userLat,
+          userLng,
+          donorLat,
+          donorLng
+        );
+
+        return {
+          ...donor,
+          distanceKm:
+            Math.round(distance * 10) / 10,
+        };
+      });
+    }
   }
 
   // =========================
   // Sort nearest first
   // =========================
-  filtered.sort(
-    (a, b) =>
-      Number(a.distanceKm || 0) -
-      Number(b.distanceKm || 0)
-  );
+  filtered.sort((a, b) => {
+    const distanceA =
+      Number.isFinite(Number(a.distanceKm))
+        ? Number(a.distanceKm)
+        : Infinity;
+
+    const distanceB =
+      Number.isFinite(Number(b.distanceKm))
+        ? Number(b.distanceKm)
+        : Infinity;
+
+    return distanceA - distanceB;
+  });
 
   res.json(filtered);
 });
 
 // =========================
+// GET one donor
+// =========================
+
+router.get("/donors/:id", (req, res) => {
+  const donor = donors.find(
+    (d) => d.id === req.params.id
+  );
+
+  if (!donor) {
+    return res.status(404).json({
+      error: "Donor not found",
+    });
+  }
+
+  res.json(donor);
+});
+
+// =========================
 // Donor responds to request
 // =========================
+
 router.post(
   "/requests/:id/respond",
   (req, res) => {
@@ -196,6 +224,7 @@ router.post(
 // =========================
 // Nearby hospitals
 // =========================
+
 router.get("/hospitals", (req, res) => {
   res.json(hospitals);
 });
@@ -203,6 +232,7 @@ router.get("/hospitals", (req, res) => {
 // =========================
 // Distance Calculator
 // =========================
+
 function calculateDistance(
   lat1,
   lon1,
