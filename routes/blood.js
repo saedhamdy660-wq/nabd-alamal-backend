@@ -145,6 +145,16 @@ router.post(
       });
     }
 
+    // منع إرسال طلب لمتبرع مشغول حاليًا
+    // لو available غير موجود في البيانات القديمة
+    // نعتبر المتبرع متاحًا بشكل افتراضي
+    if (donor.available === false) {
+      return res.status(409).json({
+        error:
+          "هذا المتبرع مرتبط حاليًا بطلب تبرع آخر",
+      });
+    }
+
     // منع تكرار نفس الطلب أثناء الانتظار
     const alreadyPending =
       bloodRequests.find(
@@ -153,7 +163,8 @@ router.post(
             "direct-donation" &&
           item.requesterId ===
             requester.id &&
-          item.donorId === donor.id &&
+          item.donorId ===
+            donor.id &&
           item.status ===
             "قيد الانتظار"
       );
@@ -372,9 +383,21 @@ router.post(
     const now =
       new Date();
 
+    // البحث عن سجل المتبرع
+    const respondingDonor =
+      donors.find(
+        (donor) =>
+          donor.userId ===
+          respondingDonorUserId
+      );
+
     if (
       action === "accept"
     ) {
+      // =========================
+      // قبول الطلب
+      // =========================
+
       request.status =
         "تم القبول";
 
@@ -389,7 +412,18 @@ router.post(
 
         done: true,
       });
+
+      // جعل المتبرع غير متاح مؤقتًا
+      // حتى لا يستقبل طلبات جديدة
+      if (respondingDonor) {
+        respondingDonor.available =
+          false;
+      }
     } else {
+      // =========================
+      // رفض الطلب
+      // =========================
+
       request.status =
         "تم الرفض";
 
@@ -404,6 +438,12 @@ router.post(
 
         done: true,
       });
+
+      // عند الرفض يظل المتبرع متاحًا
+      if (respondingDonor) {
+        respondingDonor.available =
+          true;
+      }
     }
 
     // تحديث طلب المستخدم
@@ -535,6 +575,13 @@ router.get(
             userId
         );
     }
+
+    // Exclude donors who are currently busy
+    filtered =
+      filtered.filter(
+        (donor) =>
+          donor.available !== false
+      );
 
     // Filter by blood type
     if (bloodType) {
