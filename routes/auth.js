@@ -92,7 +92,7 @@ router.post("/register", (req, res) => {
   users.push(newUser);
 
   // =========================
-  // Add real donor to donors list
+  // Add real donor
   // =========================
   if (accountType === "donor") {
     donors.push({
@@ -186,4 +186,76 @@ router.post("/google", async (req, res) => {
     }
 
     const {
-      sub: googleI
+      sub: googleId,
+      email,
+      name,
+      picture,
+      email_verified,
+    } = payload;
+
+    if (!email || !email_verified) {
+      return res.status(401).json({
+        error:
+          "لم يتم التحقق من البريد الإلكتروني بواسطة Google",
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    let found = users.find(
+      (u) =>
+        u.email.toLowerCase() === cleanEmail
+    );
+
+    if (!found) {
+      const newUser = {
+        id: "u" + (users.length + 1),
+        name:
+          name ||
+          cleanEmail.split("@")[0],
+        email: cleanEmail,
+        phone: "",
+        nationalId: "",
+        password: "",
+        accountType: "user",
+        bloodType: "",
+        lastDonation: "",
+        chronicDisease: false,
+        lat: 30.0444,
+        lng: 31.2357,
+        locationEnabled: false,
+        googleId,
+        avatar: picture || "",
+        phoneVerified: false,
+        identityVerified: false,
+        verificationStatus: "pending",
+      };
+
+      users.push(newUser);
+      found = newUser;
+    } else {
+      found.googleId =
+        found.googleId || googleId;
+
+      if (picture) {
+        found.avatar = picture;
+      }
+    }
+
+    const { password: _pw, ...safeUser } =
+      found;
+
+    res.json(safeUser);
+  } catch (error) {
+    console.error(
+      "Google login error:",
+      error
+    );
+
+    res.status(401).json({
+      error: "فشل تسجيل الدخول بواسطة Google",
+    });
+  }
+});
+
+export default router;
