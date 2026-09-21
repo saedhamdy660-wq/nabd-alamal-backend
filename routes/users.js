@@ -1,8 +1,5 @@
 import express from "express";
-import {
-  users,
-  myRequests,
-} from "../data/store.js";
+import { users, myRequests } from "../data/store.js";
 
 const router = express.Router();
 
@@ -42,12 +39,25 @@ router.get("/me", (req, res) => {
   res.json(safeUser);
 });
 
+router.get("/me/requests", (req, res) => {
+  res.json(myRequests);
+});
+
 /*
-  Update user's current location
+  تحديث موقع المستخدم
 */
 router.put("/:id/location", (req, res) => {
-  const { id } = req.params;
   const { lat, lng } = req.body;
+
+  const user = users.find(
+    (u) => u.id === req.params.id
+  );
+
+  if (!user) {
+    return res.status(404).json({
+      error: "المستخدم غير موجود",
+    });
+  }
 
   const latitude = Number(lat);
   const longitude = Number(lng);
@@ -57,28 +67,7 @@ router.put("/:id/location", (req, res) => {
     !Number.isFinite(longitude)
   ) {
     return res.status(400).json({
-      error: "موقع غير صالح",
-    });
-  }
-
-  if (
-    latitude < -90 ||
-    latitude > 90 ||
-    longitude < -180 ||
-    longitude > 180
-  ) {
-    return res.status(400).json({
       error: "إحداثيات الموقع غير صحيحة",
-    });
-  }
-
-  const user = users.find(
-    (u) => u.id === id
-  );
-
-  if (!user) {
-    return res.status(404).json({
-      error: "المستخدم غير موجود",
     });
   }
 
@@ -86,41 +75,10 @@ router.put("/:id/location", (req, res) => {
   user.lng = longitude;
   user.locationEnabled = true;
 
-  /*
-    لو المستخدم متبرع، نحدث موقعه
-    في قائمة المتبرعين أيضًا.
-  */
-  const donor = users
-    .map((u) => u)
-    .find((u) => u.id === id);
-
-  // تحديث آمن لبيانات المتبرع
-  // يتم عمله من خلال import ديناميكي
-  // لتجنب تغيير باقي منطق الملف.
-  import("../data/store.js").then(
-    ({ donors }) => {
-      const donorRecord = donors.find(
-        (d) => d.userId === id
-      );
-
-      if (donorRecord) {
-        donorRecord.lat = latitude;
-        donorRecord.lng = longitude;
-        donorRecord.distanceKm = 0;
-      }
-    }
-  );
-
-  const {
-    password: _pw,
-    ...safeUser
-  } = user;
+  const { password: _pw, ...safeUser } =
+    user;
 
   res.json(safeUser);
-});
-
-router.get("/me/requests", (req, res) => {
-  res.json(myRequests);
 });
 
 export default router;
