@@ -1,5 +1,9 @@
 import express from "express";
-import { users, myRequests } from "../data/store.js";
+import {
+  users,
+  myRequests,
+  donors,
+} from "../data/store.js";
 
 const router = express.Router();
 
@@ -71,9 +75,20 @@ router.put("/:id/location", (req, res) => {
     });
   }
 
+  // تحديث موقع المستخدم
   user.lat = latitude;
   user.lng = longitude;
   user.locationEnabled = true;
+
+  // لو المستخدم متبرع، حدث موقعه داخل donors أيضًا
+  const donor = donors.find(
+    (d) => d.userId === user.id
+  );
+
+  if (donor) {
+    donor.lat = latitude;
+    donor.lng = longitude;
+  }
 
   const { password: _pw, ...safeUser } =
     user;
