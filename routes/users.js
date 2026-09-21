@@ -3,6 +3,7 @@ import {
   users,
   myRequests,
   donors,
+  saveStore,
 } from "../data/store.js";
 
 const router = express.Router();
@@ -89,6 +90,9 @@ router.put("/:id/location", (req, res) => {
     donor.lat = latitude;
     donor.lng = longitude;
   }
+
+  // حفظ التغييرات في قاعدة البيانات المحلية
+  saveStore();
 
   const { password: _pw, ...safeUser } =
     user;
