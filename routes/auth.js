@@ -22,6 +22,8 @@ router.post("/register", (req, res) => {
     bloodType,
     lastDonation,
     chronicDisease,
+    lat,
+    lng,
   } = req.body;
 
   if (!name || !email || !password) {
@@ -32,11 +34,19 @@ router.post("/register", (req, res) => {
 
   const cleanEmail = email.trim().toLowerCase();
 
-  if (users.find((u) => u.email.toLowerCase() === cleanEmail)) {
+  if (
+    users.find(
+      (u) =>
+        u.email.toLowerCase() === cleanEmail
+    )
+  ) {
     return res.status(409).json({
       error: "يوجد حساب بهذا البريد الإلكتروني بالفعل",
     });
   }
+
+  const latitude = Number(lat);
+  const longitude = Number(lng);
 
   const newUser = {
     id: "u" + (users.length + 1),
@@ -62,8 +72,17 @@ router.post("/register", (req, res) => {
         ? Boolean(chronicDisease)
         : false,
 
-    lat: 30.0444,
-    lng: 31.2357,
+    lat: Number.isFinite(latitude)
+      ? latitude
+      : 30.0444,
+
+    lng: Number.isFinite(longitude)
+      ? longitude
+      : 31.2357,
+
+    locationEnabled:
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude),
 
     phoneVerified: false,
     identityVerified: false,
@@ -73,7 +92,7 @@ router.post("/register", (req, res) => {
   users.push(newUser);
 
   // =========================
-  // Add user to donors list
+  // Add real donor to donors list
   // =========================
   if (accountType === "donor") {
     donors.push({
@@ -90,7 +109,8 @@ router.post("/register", (req, res) => {
     });
   }
 
-  const { password: _pw, ...safeUser } = newUser;
+  const { password: _pw, ...safeUser } =
+    newUser;
 
   res.status(201).json(safeUser);
 });
@@ -121,7 +141,8 @@ router.post("/login", (req, res) => {
     });
   }
 
-  const { password: _pw, ...safeUser } = found;
+  const { password: _pw, ...safeUser } =
+    found;
 
   res.json(safeUser);
 });
@@ -165,73 +186,4 @@ router.post("/google", async (req, res) => {
     }
 
     const {
-      sub: googleId,
-      email,
-      name,
-      picture,
-      email_verified,
-    } = payload;
-
-    if (!email || !email_verified) {
-      return res.status(401).json({
-        error:
-          "لم يتم التحقق من البريد الإلكتروني بواسطة Google",
-      });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    let found = users.find(
-      (u) => u.email.toLowerCase() === cleanEmail
-    );
-
-    if (!found) {
-      const newUser = {
-        id: "u" + (users.length + 1),
-        name:
-          name ||
-          cleanEmail.split("@")[0],
-        email: cleanEmail,
-        phone: "",
-        nationalId: "",
-        password: "",
-        accountType: "user",
-        bloodType: "",
-        lastDonation: "",
-        chronicDisease: false,
-        lat: 30.0444,
-        lng: 31.2357,
-        googleId,
-        avatar: picture || "",
-        phoneVerified: false,
-        identityVerified: false,
-        verificationStatus: "pending",
-      };
-
-      users.push(newUser);
-      found = newUser;
-    } else {
-      found.googleId =
-        found.googleId || googleId;
-
-      if (picture) {
-        found.avatar = picture;
-      }
-    }
-
-    const { password: _pw, ...safeUser } = found;
-
-    res.json(safeUser);
-  } catch (error) {
-    console.error(
-      "Google login error:",
-      error
-    );
-
-    res.status(401).json({
-      error: "فشل تسجيل الدخول بواسطة Google",
-    });
-  }
-});
-
-export default router;
+      sub: googleI
