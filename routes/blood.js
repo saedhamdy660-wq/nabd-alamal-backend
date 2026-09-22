@@ -13,85 +13,532 @@ import {
 const router = express.Router();
 
 // =========================
+// Helpers
+// =========================
+
+function getNow() {
+  return new Date();
+}
+
+function getTime(date = new Date()) {
+  return date.toLocaleTimeString("ar-EG");
+}
+
+function getDate(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function generateId(prefix) {
+  return `${prefix}${Date.now()}${Math.floor(
+    Math.random() * 1000
+  )}`;
+}
+
+function addNotification(notification) {
+  notifications.unshift({
+    id: generateId("n"),
+    time: "الآن",
+    ...notification,
+  });
+}
+
+function addTimeline(request, label, date = new Date()) {
+  if (!Array.isArray(request.timeline)) {
+    request.timeline = [];
+  }
+
+  request.timeline.push({
+    label,
+    time: getTime(date),
+    done: true,
+  });
+}
+
+function findUser(userId) {
+  return users.find(
+    (user) => user.id === userId
+  );
+}
+
+function findDonor(donorId) {
+  return donors.find(
+    (donor) => donor.id === donorId
+  );
+}
+
+function findDonorByUserId(userId) {
+  return donors.find(
+    (donor) => donor.userId === userId
+  );
+}
+
+// =========================
+// Find nearest hospital
+// =========================
+
+function findNearestHospital(lat, lng) {
+  if (!Array.isArray(hospitals) || hospitals.length === 0) {
+    return null;
+  }
+
+  const userLat = Number(lat);
+  const userLng = Number(lng);
+
+  // لو مكان المستخدم غير متاح
+  // نستخدم أول مستشفى كاختيار آمن
+  if (
+    !Number.isFinite(userLat) ||
+    !Number.isFinite(userLng)
+  ) {
+    return hospitals[0];
+  }
+
+  let nearestHospital = null;
+  let nearestDistance = Infinity;
+
+  for (const hospital of hospitals) {
+    const hospitalLat = Number(
+      hospital.lat
+    );
+
+    const hospitalLng = Number(
+      hospital.lng
+    );
+
+    if (
+      !Number.isFinite(hospitalLat) ||
+      !Number.isFinite(hospitalLng)
+    ) {
+      continue;
+    }
+
+    const distance = calculateDistance(
+      userLat,
+      userLng,
+      hospitalLat,
+      hospitalLng
+    );
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestHospital = hospital;
+    }
+  }
+
+  return (
+    nearestHospital ||
+    hospitals[0]
+  );
+}
+
+// =========================
+// Add hospital information
+// =========================
+
+function attachHospitalLocation(
+  request,
+  requester
+) {
+  const hospital = findNearestHospital(
+    requester?.lat,
+    requester?.lng
+  );
+
+  if (!hospital) {
+    return;
+  }
+
+  request.hospitalId =
+    hospital.id || null;
+
+  request.hospital =
+    hospital.name ||
+    hospital.title ||
+    hospital.hospitalName ||
+    "المستشفى المحدد";
+
+  request.lat =
+    Number.isFinite(Number(hospital.lat))
+      ? Number(hospital.lat)
+      : null;
+
+  request.lng =
+    Number.isFinite(Number(hospital.lng))
+      ? Number(hospital.lng)
+      : null;
+
+  request.locationType =
+    "hospital";
+
+  request.locationName =
+    request.hospital;
+
+  if (hospital.address) {
+    request.address =
+      hospital.address;
+  }
+}
+
+// =========================
+// Update user's request
+// =========================
+
+function createMyRequest(request) {
+  if (!request?.requesterId) {
+    return;
+  }
+
+  const existingIndex =
+    myRequests.findIndex(
+      (item) =>
+        item.id === request.id &&
+        item.userId === request.requesterId
+    );
+
+  const requestData = {
+    id: request.id,
+
+    userId:
+      request.requesterId,
+
+    type: "دم",
+
+    title:
+      `طلب تبرع بالدم (${request.bloodType})`,
+
+    requestType:
+      request.requestType ||
+      "blood",
+
+    bloodType:
+      request.bloodType,
+
+    donorId:
+      request.donorId ||
+      null,
+
+    donorUserId:
+      request.donorUserId ||
+      null,
+
+    donorName:
+      request.donorName ||
+      null,
+
+    hospital:
+      request.hospital ||
+      null,
+
+    hospitalId:
+      request.hospitalId ||
+      null,
+
+    locationType:
+      request.locationType ||
+      "hospital",
+
+    lat:
+      request.lat ??
+      null,
+
+    lng:
+      request.lng ??
+      null,
+
+    address:
+      request.address ||
+      null,
+
+    status:
+      request.status,
+
+    date:
+      request.createdAt
+        ? getDate(
+            new Date(
+              request.createdAt
+            )
+          )
+        : getDate(),
+
+    createdAt:
+      request.createdAt ||
+      new Date().toISOString(),
+
+    timeline:
+      Array.isArray(
+        request.timeline
+      )
+        ? [...request.timeline]
+        : [],
+  };
+
+  if (existingIndex === -1) {
+    myRequests.push(
+      requestData
+    );
+  } else {
+    myRequests[
+      existingIndex
+    ] = {
+      ...myRequests[
+        existingIndex
+      ],
+      ...requestData,
+    };
+  }
+}
+
+function updateMyRequest(request) {
+  if (!request?.requesterId) {
+    return;
+  }
+
+  const myRequest =
+    myRequests.find(
+      (item) =>
+        item.id === request.id &&
+        item.userId ===
+          request.requesterId
+    );
+
+  if (!myRequest) {
+    createMyRequest(request);
+    return;
+  }
+
+  myRequest.status =
+    request.status;
+
+  myRequest.hospital =
+    request.hospital ||
+    myRequest.hospital;
+
+  myRequest.hospitalId =
+    request.hospitalId ||
+    myRequest.hospitalId;
+
+  myRequest.locationType =
+    request.locationType ||
+    myRequest.locationType ||
+    "hospital";
+
+  myRequest.lat =
+    request.lat ??
+    myRequest.lat ??
+    null;
+
+  myRequest.lng =
+    request.lng ??
+    myRequest.lng ??
+    null;
+
+  myRequest.address =
+    request.address ||
+    myRequest.address ||
+    null;
+
+  myRequest.timeline =
+    Array.isArray(
+      request.timeline
+    )
+      ? [...request.timeline]
+      : myRequest.timeline;
+
+  myRequest.updatedAt =
+    new Date().toISOString();
+}
+
+// =========================
 // Blood Requests
 // =========================
 
-// GET all active blood/plasma requests
-router.get("/requests", (req, res) => {
-  res.json(bloodRequests);
-});
+// GET all active public blood requests
+router.get(
+  "/requests",
+  (req, res) => {
+    const activeRequests =
+      bloodRequests.filter(
+        (request) => {
+          // طلبات التبرع المباشر لها
+          // endpoint خاص بها
+          if (
+            request.requestType ===
+            "direct-donation"
+          ) {
+            return false;
+          }
+
+          return (
+            request.status !==
+              "مكتمل" &&
+            request.status !==
+              "تم الرفض"
+          );
+        }
+      );
+
+    res.json(
+      activeRequests
+    );
+  }
+);
 
 // GET one request
-router.get("/requests/:id", (req, res) => {
-  const request = bloodRequests.find(
-    (r) => r.id === req.params.id
-  );
+router.get(
+  "/requests/:id",
+  (req, res) => {
+    const request =
+      bloodRequests.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
 
-  if (!request) {
-    return res.status(404).json({
-      error: "Request not found",
-    });
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "Request not found",
+      });
+    }
+
+    res.json(request);
   }
+);
 
-  res.json(request);
-});
+// =========================
+// Create Emergency Request
+// =========================
 
-// POST create a new emergency blood request
-router.post("/requests", (req, res) => {
-  const {
-    bloodType,
-    urgency,
-    hospital,
-    lat,
-    lng,
-  } = req.body;
+router.post(
+  "/requests",
+  (req, res) => {
+    const {
+      bloodType,
+      urgency,
+      hospital,
+      hospitalId,
+      requesterId,
+      userId,
+      lat,
+      lng,
+    } = req.body;
 
-  if (!bloodType || !hospital) {
-    return res.status(400).json({
-      error:
-        "bloodType and hospital are required",
-    });
+    const ownerId =
+      requesterId ||
+      userId ||
+      null;
+
+    if (!bloodType || !hospital) {
+      return res.status(400).json({
+        error:
+          "bloodType and hospital are required",
+      });
+    }
+
+    let requester = null;
+
+    if (ownerId) {
+      requester =
+        findUser(ownerId);
+
+      if (!requester) {
+        return res.status(404).json({
+          error:
+            "المستخدم غير موجود",
+        });
+      }
+    }
+
+    const now =
+      getNow();
+
+    const newRequest = {
+      id: generateId("b"),
+
+      requestType:
+        "blood",
+
+      requesterId:
+        ownerId,
+
+      userId:
+        ownerId,
+
+      requesterName:
+        requester?.name ||
+        null,
+
+      bloodType,
+
+      urgency:
+        urgency ||
+        "عاجلة",
+
+      hospital,
+
+      hospitalId:
+        hospitalId ||
+        null,
+
+      locationType:
+        "hospital",
+
+      distanceKm:
+        0,
+
+      lat:
+        Number.isFinite(
+          Number(lat)
+        )
+          ? Number(lat)
+          : 0,
+
+      lng:
+        Number.isFinite(
+          Number(lng)
+        )
+          ? Number(lng)
+          : 0,
+
+      status:
+        "قيد التنفيذ",
+
+      createdAt:
+        now.toISOString(),
+
+      timeline: [
+        {
+          label:
+            "تم إرسال التنبيه للمتبرعين",
+
+          time:
+            getTime(now),
+
+          done: true,
+        },
+      ],
+    };
+
+    bloodRequests.push(
+      newRequest
+    );
+
+    // لو الطلب مرتبط بمستخدم
+    // نحفظه في طلباته فقط
+    if (ownerId) {
+      createMyRequest(
+        newRequest
+      );
+    }
+
+    saveStore();
+
+    res.status(201).json(
+      newRequest
+    );
   }
-
-  const newRequest = {
-    id: "b" + (bloodRequests.length + 1),
-
-    bloodType,
-
-    urgency:
-      urgency || "عاجلة",
-
-    hospital,
-
-    distanceKm: 0,
-
-    lat: lat || 0,
-
-    lng: lng || 0,
-
-    status: "قيد التنفيذ",
-
-    timeline: [
-      {
-        label:
-          "تم إرسال التنبيه للمتبرعين",
-
-        time:
-          new Date().toLocaleTimeString(
-            "ar-EG"
-          ),
-
-        done: true,
-      },
-    ],
-  };
-
-  bloodRequests.push(newRequest);
-
-  saveStore();
-
-  res.status(201).json(newRequest);
-});
+);
 
 // =========================
 // Direct Donation Requests
@@ -113,30 +560,33 @@ router.post(
       });
     }
 
-    const requester = users.find(
-      (user) =>
-        user.id === requesterId
-    );
+    const requester =
+      findUser(
+        requesterId
+      );
 
-    const donor = donors.find(
-      (item) =>
-        item.id === donorId
-    );
+    const donor =
+      findDonor(
+        donorId
+      );
 
     if (!requester) {
       return res.status(404).json({
-        error: "المستخدم غير موجود",
+        error:
+          "المستخدم غير موجود",
       });
     }
 
     if (!donor) {
       return res.status(404).json({
-        error: "المتبرع غير موجود",
+        error:
+          "المتبرع غير موجود",
       });
     }
 
     if (
-      donor.userId === requester.id
+      donor.userId ===
+      requester.id
     ) {
       return res.status(400).json({
         error:
@@ -144,15 +594,17 @@ router.post(
       });
     }
 
-    // منع إرسال طلب لمتبرع مشغول حاليًا
-    if (donor.available === false) {
+    // منع إرسال طلب لمتبرع مشغول
+    if (
+      donor.available === false
+    ) {
       return res.status(409).json({
         error:
           "هذا المتبرع مرتبط حاليًا بطلب تبرع آخر",
       });
     }
 
-    // منع تكرار نفس الطلب أثناء الانتظار
+    // منع تكرار نفس الطلب
     const alreadyPending =
       bloodRequests.find(
         (item) =>
@@ -176,19 +628,23 @@ router.post(
       });
     }
 
-    const requestId =
-      "dr" + Date.now();
-
     const now =
-      new Date();
+      getNow();
+
+    const requestId =
+      generateId("dr");
 
     const newRequest = {
-      id: requestId,
+      id:
+        requestId,
 
       requestType:
         "direct-donation",
 
       requesterId:
+        requester.id,
+
+      userId:
         requester.id,
 
       requesterName:
@@ -215,51 +671,52 @@ router.post(
       createdAt:
         now.toISOString(),
 
+      locationType:
+        "hospital",
+
       timeline: [
         {
           label:
-            "تم إرسال التنبيه للمتبرعين",
+            "تم إرسال طلب التبرع إلى المتبرع",
 
           time:
-            now.toLocaleTimeString(
-              "ar-EG"
-            ),
+            getTime(now),
 
           done: true,
         },
       ],
     };
 
+    // =========================
+    // تحديد مكان التبرع
+    // =========================
+    //
+    // مهم:
+    // لا نستخدم موقع منزل المتبرع
+    // كوجهة للتبرع.
+    //
+    // المكان المشترك بين الطرفين
+    // هو المستشفى.
+    //
+    attachHospitalLocation(
+      newRequest,
+      requester
+    );
+
     bloodRequests.push(
       newRequest
     );
 
-    // تسجيل الطلب في طلبات المستخدم
-    myRequests.push({
-      id: requestId,
-
-      title:
-        `طلب تبرع بالدم (${donor.bloodType})`,
-
-      type: "دم",
-
-      date:
-        now
-          .toISOString()
-          .slice(0, 10),
-
-      status:
-        "قيد الانتظار",
-    });
+    // تسجيل الطلب لصاحب الطلب فقط
+    createMyRequest(
+      newRequest
+    );
 
     // =========================
-    // إشعار للمتبرع
+    // إشعار المتبرع
     // =========================
 
-    const notification = {
-      id:
-        "n" + Date.now(),
-
+    const donorNotification = {
       recipientId:
         donor.userId,
 
@@ -280,18 +737,27 @@ router.post(
       body:
         `${requester.name} يحتاج إلى دم من فصيلة ${donor.bloodType}`,
 
-      time:
-        "الآن",
-
       type:
         "urgent",
 
       status:
         "pending",
+
+      hospital:
+        newRequest.hospital,
+
+      hospitalId:
+        newRequest.hospitalId,
+
+      lat:
+        newRequest.lat,
+
+      lng:
+        newRequest.lng,
     };
 
-    notifications.unshift(
-      notification
+    addNotification(
+      donorNotification
     );
 
     saveStore();
@@ -300,7 +766,8 @@ router.post(
       request:
         newRequest,
 
-      notification,
+      notification:
+        donorNotification,
     });
   }
 );
@@ -319,7 +786,8 @@ router.post(
     } = req.body;
 
     const respondingDonorUserId =
-      donorUserId || donorId;
+      donorUserId ||
+      donorId;
 
     const request =
       bloodRequests.find(
@@ -370,14 +838,16 @@ router.post(
     }
 
     const now =
-      new Date();
+      getNow();
 
     const respondingDonor =
-      donors.find(
-        (donor) =>
-          donor.userId ===
-          respondingDonorUserId
+      findDonorByUserId(
+        respondingDonorUserId
       );
+
+    // =========================
+    // ACCEPT
+    // =========================
 
     if (
       action === "accept"
@@ -385,60 +855,51 @@ router.post(
       request.status =
         "تم القبول";
 
-      request.timeline.push({
-        label:
-          "تم قبول الطلب من المتبرع",
+      request.acceptedAt =
+        now.toISOString();
 
-        time:
-          now.toLocaleTimeString(
-            "ar-EG"
-          ),
-
-        done: true,
-      });
+      addTimeline(
+        request,
+        "تم قبول الطلب من المتبرع",
+        now
+      );
 
       // المتبرع أصبح مشغولًا
       if (respondingDonor) {
         respondingDonor.available =
           false;
       }
-    } else {
+    }
+
+    // =========================
+    // REJECT
+    // =========================
+
+    if (
+      action === "reject"
+    ) {
       request.status =
         "تم الرفض";
 
-      request.timeline.push({
-        label:
-          "تم رفض الطلب من المتبرع",
+      request.rejectedAt =
+        now.toISOString();
 
-        time:
-          now.toLocaleTimeString(
-            "ar-EG"
-          ),
+      addTimeline(
+        request,
+        "تم رفض الطلب من المتبرع",
+        now
+      );
 
-        done: true,
-      });
-
-      // المتبرع يظل متاحًا
       if (respondingDonor) {
         respondingDonor.available =
           true;
       }
     }
 
-    // تحديث طلب المستخدم
-    const myRequest =
-      myRequests.find(
-        (item) =>
-          item.id ===
-          request.id
-      );
-
-    if (myRequest) {
-      myRequest.status =
-        action === "accept"
-          ? "تم القبول"
-          : "تم الرفض";
-    }
+    // تحديث طلب صاحب الطلب
+    updateMyRequest(
+      request
+    );
 
     // تحديث إشعار المتبرع
     const donorNotification =
@@ -460,11 +921,11 @@ router.post(
         now.toISOString();
     }
 
+    // =========================
     // إشعار صاحب الطلب
-    const requesterNotification = {
-      id:
-        "n" + Date.now(),
+    // =========================
 
+    const requesterNotification = {
       recipientId:
         request.requesterId,
 
@@ -490,9 +951,6 @@ router.post(
           ? `وافق ${request.donorName} على التبرع لك بفصيلة ${request.bloodType}`
           : `للأسف، رفض ${request.donorName} طلب التبرع`,
 
-      time:
-        "الآن",
-
       type:
         action === "accept"
           ? "success"
@@ -502,9 +960,21 @@ router.post(
         action === "accept"
           ? "accepted"
           : "rejected",
+
+      hospital:
+        request.hospital,
+
+      hospitalId:
+        request.hospitalId,
+
+      lat:
+        request.lat,
+
+      lng:
+        request.lng,
     };
 
-    notifications.unshift(
+    addNotification(
       requesterNotification
     );
 
@@ -558,7 +1028,7 @@ router.post(
     }
 
     const now =
-      new Date();
+      getNow();
 
     let newStatus = "";
     let stageLabel = "";
@@ -648,56 +1118,163 @@ router.post(
     request.status =
       newStatus;
 
-    request.timeline.push({
-      label:
-        stageLabel,
+    addTimeline(
+      request,
+      stageLabel,
+      now
+    );
 
-      time:
-        now.toLocaleTimeString(
-          "ar-EG"
-        ),
-
-      done: true,
-    });
+    if (
+      stage === "completed"
+    ) {
+      request.donationCompletedAt =
+        now.toISOString();
+    }
 
     // تحديث طلب المستخدم
-    const myRequest =
-      myRequests.find(
-        (item) =>
-          item.id ===
-          request.id
-      );
+    updateMyRequest(
+      request
+    );
 
-    if (myRequest) {
-      myRequest.status =
-        stage === "completed"
-          ? "مكتمل"
-          : newStatus;
+    // =========================
+    // إشعارات مراحل التبرع
+    // =========================
+
+    if (
+      stage === "on_way"
+    ) {
+      addNotification({
+        recipientId:
+          request.requesterId,
+
+        senderId:
+          request.donorUserId,
+
+        requestId:
+          request.id,
+
+        donorId:
+          request.donorId,
+
+        kind:
+          "donor_on_way",
+
+        title:
+          "المتبرع في الطريق",
+
+        body:
+          `${request.donorName} بدأ التوجه إلى المستشفى للتبرع لك`,
+
+        type:
+          "info",
+
+        status:
+          "on_way",
+
+        hospital:
+          request.hospital,
+
+        hospitalId:
+          request.hospitalId,
+
+        lat:
+          request.lat,
+
+        lng:
+          request.lng,
+      });
+    }
+
+    if (
+      stage === "arrived"
+    ) {
+      addNotification({
+        recipientId:
+          request.requesterId,
+
+        senderId:
+          request.donorUserId,
+
+        requestId:
+          request.id,
+
+        donorId:
+          request.donorId,
+
+        kind:
+          "donor_arrived",
+
+        title:
+          "وصل المتبرع للمستشفى",
+
+        body:
+          `${request.donorName} وصل إلى ${request.hospital}`,
+
+        type:
+          "info",
+
+        status:
+          "arrived",
+
+        hospital:
+          request.hospital,
+
+        hospitalId:
+          request.hospitalId,
+
+        lat:
+          request.lat,
+
+        lng:
+          request.lng,
+      });
     }
 
     // =========================
-    // عند انتهاء التبرع
+    // انتهاء التبرع
     // =========================
 
     if (
       stage === "completed"
     ) {
       const donor =
-        donors.find(
-          (item) =>
-            item.userId ===
-            donorId
+        findDonorByUserId(
+          donorId
         );
 
       if (donor) {
         donor.available =
           true;
+
+        donor.donationsCount =
+          Number(
+            donor.donationsCount || 0
+          ) + 1;
+
+        donor.lastDonation =
+          getDate(now);
       }
 
-      notifications.unshift({
-        id:
-          "n" + Date.now(),
+      // الحالة النهائية للطلب
+      request.status =
+        "مكتمل";
 
+      request.completedAt =
+        now.toISOString();
+
+      addTimeline(
+        request,
+        "تم إكمال طلب التبرع بنجاح",
+        now
+      );
+
+      // تحديث طلب المستخدم مرة أخيرة
+      updateMyRequest(
+        request
+      );
+
+      // إشعار صاحب الطلب
+      addNotification({
         recipientId:
           request.requesterId,
 
@@ -719,14 +1296,65 @@ router.post(
         body:
           `تمت عملية التبرع بنجاح بواسطة ${request.donorName}`,
 
-        time:
-          "الآن",
+        type:
+          "success",
+
+        status:
+          "completed",
+
+        hospital:
+          request.hospital,
+
+        hospitalId:
+          request.hospitalId,
+
+        lat:
+          request.lat,
+
+        lng:
+          request.lng,
+      });
+
+      // إشعار للمتبرع أيضًا
+      addNotification({
+        recipientId:
+          request.donorUserId,
+
+        senderId:
+          request.requesterId,
+
+        requestId:
+          request.id,
+
+        donorId:
+          request.donorId,
+
+        kind:
+          "donation_completed",
+
+        title:
+          "اكتمل التبرع",
+
+        body:
+          `تم تسجيل اكتمال عملية التبرع بنجاح في ${request.hospital}`,
 
         type:
           "success",
 
         status:
           "completed",
+
+        hospital:
+          request.hospital,
+
+        hospitalId:
+          request.hospitalId,
+
+        lat:
+          request.lat,
+
+        lng:
+          request.lng,
       });
     }
 
@@ -758,7 +1386,7 @@ router.get(
     let filtered =
       [...donors];
 
-    // Exclude current user
+    // استبعاد المستخدم الحالي
     if (userId) {
       filtered =
         filtered.filter(
@@ -768,14 +1396,14 @@ router.get(
         );
     }
 
-    // Exclude donors who are currently busy
+    // استبعاد المتبرعين المشغولين
     filtered =
       filtered.filter(
         (donor) =>
           donor.available !== false
       );
 
-    // Filter by blood type
+    // فلترة فصيلة الدم
     if (bloodType) {
       filtered =
         filtered.filter(
@@ -785,8 +1413,11 @@ router.get(
         );
     }
 
-    // Calculate distance
-    if (lat && lng) {
+    // حساب المسافة
+    if (
+      lat !== undefined &&
+      lng !== undefined
+    ) {
       const userLat =
         Number(lat);
 
@@ -824,6 +1455,7 @@ router.get(
               ) {
                 return {
                   ...donor,
+
                   distanceKm:
                     null,
                 };
@@ -850,7 +1482,7 @@ router.get(
       }
     }
 
-    // Sort nearest first
+    // ترتيب الأقرب
     filtered.sort(
       (a, b) => {
         const distanceA =
@@ -882,7 +1514,9 @@ router.get(
       }
     );
 
-    res.json(filtered);
+    res.json(
+      filtered
+    );
   }
 );
 
@@ -894,10 +1528,8 @@ router.get(
   "/donors/:id",
   (req, res) => {
     const donor =
-      donors.find(
-        (d) =>
-          d.id ===
-          req.params.id
+      findDonor(
+        req.params.id
       );
 
     if (!donor) {
@@ -907,21 +1539,28 @@ router.get(
       });
     }
 
-    res.json(donor);
+    res.json(
+      donor
+    );
   }
 );
 
 // =========================
 // Old donor response
 // =========================
+//
+// Legacy endpoint.
+// موجود للتوافق مع الصفحة الحالية.
+// لا يغير بيانات الطلبات الخاصة
+// بالتبرع المباشر.
 
 router.post(
   "/requests/:id/respond",
   (req, res) => {
     const request =
       bloodRequests.find(
-        (r) =>
-          r.id ===
+        (item) =>
+          item.id ===
           req.params.id
       );
 
@@ -932,32 +1571,44 @@ router.post(
       });
     }
 
-    request.timeline.push({
-      label:
-        "تم قبول الطلب من متبرع",
+    const now =
+      getNow();
 
-      time:
-        new Date().toLocaleTimeString(
-          "ar-EG"
-        ),
+    addTimeline(
+      request,
+      "تم قبول الطلب من متبرع",
+      now
+    );
 
-      done: true,
-    });
+    request.status =
+      "تم القبول";
+
+    if (
+      request.requesterId
+    ) {
+      updateMyRequest(
+        request
+      );
+    }
 
     saveStore();
 
-    res.json(request);
+    res.json(
+      request
+    );
   }
 );
 
 // =========================
-// Nearby hospitals
+// Hospitals
 // =========================
 
 router.get(
   "/hospitals",
   (req, res) => {
-    res.json(hospitals);
+    res.json(
+      hospitals
+    );
   }
 );
 
