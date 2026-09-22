@@ -90,8 +90,8 @@ router.get("/me/requests", (req, res) => {
   const userRequests =
     myRequests.filter(
       (request) =>
-        request.requesterId ===
-        currentUser.id
+        request.userId === currentUser.id ||
+        request.requesterId === currentUser.id
     );
 
   res.json(userRequests);
