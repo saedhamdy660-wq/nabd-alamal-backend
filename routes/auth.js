@@ -1,5 +1,6 @@
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
+
 import {
   users,
   donors,
@@ -12,9 +13,52 @@ const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
 );
 
-// =========================
+// ============================================================
+// Helpers
+// ============================================================
+
+function generateUserId() {
+  let id;
+
+  do {
+    id =
+      "u" +
+      Date.now() +
+      Math.floor(
+        Math.random() * 10000
+      );
+  } while (
+    users.some(
+      (user) => user.id === id
+    )
+  );
+
+  return id;
+}
+
+function generateDonorId() {
+  let id;
+
+  do {
+    id =
+      "d" +
+      Date.now() +
+      Math.floor(
+        Math.random() * 10000
+      );
+  } while (
+    donors.some(
+      (donor) => donor.id === id
+    )
+  );
+
+  return id;
+}
+
+// ============================================================
 // Register
-// =========================
+// ============================================================
+
 router.post("/register", (req, res) => {
   const {
     name,
@@ -37,8 +81,10 @@ router.post("/register", (req, res) => {
     });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail =
+    email.trim().toLowerCase();
 
+  // منع تكرار البريد الإلكتروني
   if (
     users.find(
       (u) =>
@@ -56,7 +102,7 @@ router.post("/register", (req, res) => {
   const longitude = Number(lng);
 
   const newUser = {
-    id: "u" + (users.length + 1),
+    id: generateUserId(),
 
     name: name.trim(),
 
@@ -64,7 +110,8 @@ router.post("/register", (req, res) => {
 
     phone: phone || "",
 
-    nationalId: nationalId || "",
+    nationalId:
+      nationalId || "",
 
     password,
 
@@ -102,23 +149,26 @@ router.post("/register", (req, res) => {
 
     identityVerified: false,
 
-    verificationStatus: "pending",
+    verificationStatus:
+      "pending",
   };
 
   users.push(newUser);
 
-  // =========================
-  // Add real donor
-  // =========================
+  // ==========================================================
+  // إنشاء متبرع حقيقي لو الحساب متبرع
+  // ==========================================================
+
   if (accountType === "donor") {
     donors.push({
-      id: "d" + (donors.length + 1),
+      id: generateDonorId(),
 
       userId: newUser.id,
 
       name: newUser.name,
 
-      bloodType: newUser.bloodType,
+      bloodType:
+        newUser.bloodType,
 
       distanceKm: 0,
 
@@ -128,29 +178,31 @@ router.post("/register", (req, res) => {
 
       donationsCount: 0,
 
-      lastDonation: newUser.lastDonation,
+      lastDonation:
+        newUser.lastDonation,
 
       verified: false,
     });
   }
 
-  // ============================================================
-  // حفظ المستخدم والمتبرع في db.json
-  // ============================================================
-
+  // حفظ المستخدم والمتبرع
   saveStore();
 
+  // عدم إرسال كلمة المرور للـ Frontend
   const {
     password: _pw,
     ...safeUser
   } = newUser;
 
-  res.status(201).json(safeUser);
+  res.status(201).json(
+    safeUser
+  );
 });
 
-// =========================
+// ============================================================
 // Login
-// =========================
+// ============================================================
+
 router.post("/login", (req, res) => {
   const {
     email,
@@ -186,12 +238,15 @@ router.post("/login", (req, res) => {
     ...safeUser
   } = found;
 
-  res.json(safeUser);
+  res.json(
+    safeUser
+  );
 });
 
-// =========================
+// ============================================================
 // Google Login
-// =========================
+// ============================================================
+
 router.post(
   "/google",
   async (req, res) => {
@@ -222,6 +277,7 @@ router.post(
         await googleClient.verifyIdToken(
           {
             idToken: credential,
+
             audience:
               process.env.GOOGLE_CLIENT_ID,
           }
@@ -264,14 +320,14 @@ router.post(
           cleanEmail
       );
 
-      // =========================
+      // ========================================================
       // إنشاء مستخدم Google جديد
-      // =========================
+      // ========================================================
+
       if (!found) {
         const newUser = {
           id:
-            "u" +
-            (users.length + 1),
+            generateUserId(),
 
           name:
             name ||
@@ -279,7 +335,8 @@ router.post(
               "@"
             )[0],
 
-          email: cleanEmail,
+          email:
+            cleanEmail,
 
           phone: "",
 
@@ -287,46 +344,56 @@ router.post(
 
           password: "",
 
-          accountType: "user",
+          accountType:
+            "user",
 
           bloodType: "",
 
           lastDonation: "",
 
-          chronicDisease: false,
+          chronicDisease:
+            false,
 
           lat: 30.0444,
 
           lng: 31.2357,
 
-          locationEnabled: false,
+          locationEnabled:
+            false,
 
           googleId,
 
           avatar:
             picture || "",
 
-          phoneVerified: false,
+          phoneVerified:
+            false,
 
-          identityVerified: false,
+          identityVerified:
+            false,
 
           verificationStatus:
             "pending",
         };
 
-        users.push(newUser);
+        users.push(
+          newUser
+        );
 
-        found = newUser;
+        found =
+          newUser;
 
         // حفظ مستخدم Google الجديد
         saveStore();
       }
 
-      // =========================
-      // تحديث بيانات Google
-      // =========================
+      // ========================================================
+      // تحديث بيانات Google للمستخدم الموجود
+      // ========================================================
+
       else {
-        let changed = false;
+        let changed =
+          false;
 
         if (
           !found.googleId
@@ -334,31 +401,36 @@ router.post(
           found.googleId =
             googleId;
 
-          changed = true;
+          changed =
+            true;
         }
 
         if (
           picture &&
-          found.avatar !== picture
+          found.avatar !==
+            picture
         ) {
           found.avatar =
             picture;
 
-          changed = true;
+          changed =
+            true;
         }
 
-        // حفظ التعديلات لو حصل تغيير
         if (changed) {
           saveStore();
         }
       }
 
+      // عدم إرسال كلمة المرور
       const {
         password: _pw,
         ...safeUser
       } = found;
 
-      res.json(safeUser);
+      res.json(
+        safeUser
+      );
     } catch (error) {
       console.error(
         "Google login error:",
