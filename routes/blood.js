@@ -42,7 +42,11 @@ function addNotification(notification) {
   });
 }
 
-function addTimeline(request, label, date = new Date()) {
+function addTimeline(
+  request,
+  label,
+  date = new Date()
+) {
   if (!Array.isArray(request.timeline)) {
     request.timeline = [];
   }
@@ -73,79 +77,37 @@ function findDonorByUserId(userId) {
 }
 
 // =========================
-// Find nearest hospital
+// Find hospital by ID
 // =========================
+//
+// المستشفى يتم اختيارها من صاحب الطلب.
+// لا نستخدم موقع المستخدم لاختيار المستشفى.
 
-function findNearestHospital(lat, lng) {
-  if (!Array.isArray(hospitals) || hospitals.length === 0) {
+function findHospital(hospitalId) {
+  if (!hospitalId) {
     return null;
   }
 
-  const userLat = Number(lat);
-  const userLng = Number(lng);
-
-  // لو مكان المستخدم غير متاح
-  // نستخدم أول مستشفى كاختيار آمن
-  if (
-    !Number.isFinite(userLat) ||
-    !Number.isFinite(userLng)
-  ) {
-    return hospitals[0];
+  if (!Array.isArray(hospitals)) {
+    return null;
   }
 
-  let nearestHospital = null;
-  let nearestDistance = Infinity;
-
-  for (const hospital of hospitals) {
-    const hospitalLat = Number(
-      hospital.lat
-    );
-
-    const hospitalLng = Number(
-      hospital.lng
-    );
-
-    if (
-      !Number.isFinite(hospitalLat) ||
-      !Number.isFinite(hospitalLng)
-    ) {
-      continue;
-    }
-
-    const distance = calculateDistance(
-      userLat,
-      userLng,
-      hospitalLat,
-      hospitalLng
-    );
-
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestHospital = hospital;
-    }
-  }
-
-  return (
-    nearestHospital ||
-    hospitals[0]
+  return hospitals.find(
+    (hospital) =>
+      hospital.id === hospitalId
   );
 }
 
 // =========================
-// Add hospital information
+// Attach selected hospital
 // =========================
 
-function attachHospitalLocation(
+function attachSelectedHospital(
   request,
-  requester
+  hospital
 ) {
-  const hospital = findNearestHospital(
-    requester?.lat,
-    requester?.lng
-  );
-
-  if (!hospital) {
-    return;
+  if (!request || !hospital) {
+    return false;
   }
 
   request.hospitalId =
@@ -158,12 +120,16 @@ function attachHospitalLocation(
     "المستشفى المحدد";
 
   request.lat =
-    Number.isFinite(Number(hospital.lat))
+    Number.isFinite(
+      Number(hospital.lat)
+    )
       ? Number(hospital.lat)
       : null;
 
   request.lng =
-    Number.isFinite(Number(hospital.lng))
+    Number.isFinite(
+      Number(hospital.lng)
+    )
       ? Number(hospital.lng)
       : null;
 
@@ -177,6 +143,8 @@ function attachHospitalLocation(
     request.address =
       hospital.address;
   }
+
+  return true;
 }
 
 // =========================
@@ -192,7 +160,8 @@ function createMyRequest(request) {
     myRequests.findIndex(
       (item) =>
         item.id === request.id &&
-        item.userId === request.requesterId
+        item.userId ===
+          request.requesterId
     );
 
   const requestData = {
@@ -551,19 +520,36 @@ router.post(
     const {
       requesterId,
       donorId,
+      hospitalId,
     } = req.body;
 
-    if (!requesterId || !donorId) {
+    // =========================
+    // التحقق من البيانات
+    // =========================
+
+    if (
+      !requesterId ||
+      !donorId ||
+      !hospitalId
+    ) {
       return res.status(400).json({
         error:
-          "requesterId and donorId are required",
+          "requesterId, donorId and hospitalId are required",
       });
     }
+
+    // =========================
+    // البحث عن المستخدم
+    // =========================
 
     const requester =
       findUser(
         requesterId
       );
+
+    // =========================
+    // البحث عن المتبرع
+    // =========================
 
     const donor =
       findDonor(
@@ -584,6 +570,26 @@ router.post(
       });
     }
 
+    // =========================
+    // البحث عن المستشفى المختارة
+    // =========================
+
+    const selectedHospital =
+      findHospital(
+        hospitalId
+      );
+
+    if (!selectedHospital) {
+      return res.status(404).json({
+        error:
+          "المستشفى المختارة غير موجودة",
+      });
+    }
+
+    // =========================
+    // منع إرسال طلب للنفس
+    // =========================
+
     if (
       donor.userId ===
       requester.id
@@ -594,7 +600,10 @@ router.post(
       });
     }
 
+    // =========================
     // منع إرسال طلب لمتبرع مشغول
+    // =========================
+
     if (
       donor.available === false
     ) {
@@ -604,7 +613,10 @@ router.post(
       });
     }
 
+    // =========================
     // منع تكرار نفس الطلب
+    // =========================
+
     const alreadyPending =
       bloodRequests.find(
         (item) =>
@@ -688,26 +700,31 @@ router.post(
     };
 
     // =========================
-    // تحديد مكان التبرع
+    // حفظ المستشفى التي اختارها
+    // صاحب الطلب
     // =========================
-    //
-    // مهم:
-    // لا نستخدم موقع منزل المتبرع
-    // كوجهة للتبرع.
-    //
-    // المكان المشترك بين الطرفين
-    // هو المستشفى.
-    //
-    attachHospitalLocation(
-      newRequest,
-      requester
-    );
+
+    const hospitalAttached =
+      attachSelectedHospital(
+        newRequest,
+        selectedHospital
+      );
+
+    if (!hospitalAttached) {
+      return res.status(500).json({
+        error:
+          "تعذر حفظ بيانات المستشفى",
+      });
+    }
 
     bloodRequests.push(
       newRequest
     );
 
-    // تسجيل الطلب لصاحب الطلب فقط
+    // =========================
+    // تسجيل الطلب لصاحب الطلب
+    // =========================
+
     createMyRequest(
       newRequest
     );
@@ -754,6 +771,10 @@ router.post(
 
       lng:
         newRequest.lng,
+
+      address:
+        newRequest.address ||
+        null,
     };
 
     addNotification(
@@ -896,12 +917,18 @@ router.post(
       }
     }
 
+    // =========================
     // تحديث طلب صاحب الطلب
+    // =========================
+
     updateMyRequest(
       request
     );
 
+    // =========================
     // تحديث إشعار المتبرع
+    // =========================
+
     const donorNotification =
       notifications.find(
         (item) =>
@@ -972,6 +999,10 @@ router.post(
 
       lng:
         request.lng,
+
+      address:
+        request.address ||
+        null,
     };
 
     addNotification(
@@ -1131,7 +1162,10 @@ router.post(
         now.toISOString();
     }
 
+    // =========================
     // تحديث طلب المستخدم
+    // =========================
+
     updateMyRequest(
       request
     );
@@ -1182,6 +1216,10 @@ router.post(
 
         lng:
           request.lng,
+
+        address:
+          request.address ||
+          null,
       });
     }
 
@@ -1227,6 +1265,10 @@ router.post(
 
         lng:
           request.lng,
+
+        address:
+          request.address ||
+          null,
       });
     }
 
@@ -1313,6 +1355,10 @@ router.post(
 
         lng:
           request.lng,
+
+        address:
+          request.address ||
+          null,
       });
 
       // إشعار للمتبرع أيضًا
@@ -1355,6 +1401,10 @@ router.post(
 
         lng:
           request.lng,
+
+        address:
+          request.address ||
+          null,
       });
     }
 
