@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
   users,
   myRequests,
@@ -7,6 +8,10 @@ import {
 } from "../data/store.js";
 
 const router = express.Router();
+
+// ============================================================
+// GET current user
+// ============================================================
 
 router.get("/me", (req, res) => {
   const email = req.query.email;
@@ -44,13 +49,58 @@ router.get("/me", (req, res) => {
   res.json(safeUser);
 });
 
+// ============================================================
+// GET current user's requests
+// ============================================================
+
 router.get("/me/requests", (req, res) => {
-  res.json(myRequests);
+  const email = req.query.email;
+  const userId = req.query.userId;
+
+  let currentUser = null;
+
+  // البحث عن المستخدم عن طريق userId
+  if (userId) {
+    currentUser = users.find(
+      (u) => u.id === userId
+    );
+  }
+
+  // لو مفيش userId نبحث عن طريق email
+  if (!currentUser && email) {
+    currentUser = users.find(
+      (u) =>
+        u.email.toLowerCase() ===
+        email.trim().toLowerCase()
+    );
+  }
+
+  // لو لم يتم تحديد المستخدم
+  if (!currentUser) {
+    return res.status(400).json({
+      error:
+        "يجب إرسال userId أو email لتحديد المستخدم",
+    });
+  }
+
+  // ==========================================================
+  // إرجاع الطلبات الخاصة بالمستخدم الحالي فقط
+  // ==========================================================
+
+  const userRequests =
+    myRequests.filter(
+      (request) =>
+        request.requesterId ===
+        currentUser.id
+    );
+
+  res.json(userRequests);
 });
 
-/*
-  تحديث موقع المستخدم
-*/
+// ============================================================
+// تحديث موقع المستخدم
+// ============================================================
+
 router.put("/:id/location", (req, res) => {
   const { lat, lng } = req.body;
 
@@ -91,7 +141,7 @@ router.put("/:id/location", (req, res) => {
     donor.lng = longitude;
   }
 
-  // حفظ التغييرات في قاعدة البيانات المحلية
+  // حفظ التغييرات
   saveStore();
 
   const { password: _pw, ...safeUser } =
