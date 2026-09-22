@@ -223,10 +223,16 @@ router.post(
       });
     }
 
+    // نقبل userId الأساسي
+    // و requesterId للتوافق
+    const userId =
+      req.body.userId ||
+      req.body.requesterId;
+
     const {
-      userId,
       pharmacyId,
       pharmacyName,
+      quantity,
     } = req.body;
 
     // =========================
@@ -325,6 +331,7 @@ router.post(
         medicine.category,
 
       quantity:
+        quantity ??
         medicine.quantity,
 
       expiry:
