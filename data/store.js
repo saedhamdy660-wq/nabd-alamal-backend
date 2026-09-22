@@ -8,21 +8,12 @@ const __dirname = path.dirname(__filename);
 const DB_FILE = path.join(__dirname, "db.json");
 
 // ============================================================
-// البيانات الافتراضية
+// المستخدمون
 // ============================================================
+// لا يوجد أي مستخدم تجريبي.
+// كل مستخدم جديد يتم إنشاؤه من خلال auth/register أو Google.
 
-export const user = {
-  id: "u1",
-  name: "زوزو",
-  email: "zizo@example.com",
-  bloodType: "O+",
-  lat: 30.0444,
-  lng: 31.2357,
-};
-
-export const users = [
-  { ...user, password: "123456" },
-];
+export const users = [];
 
 // ============================================================
 // المتبرعون
@@ -33,46 +24,11 @@ export const donors = [];
 // ============================================================
 // طلبات الدم
 // ============================================================
+// لا يوجد أي طلب دم تجريبي.
+// الطلبات الجديدة يتم إنشاؤها من خلال routes/blood.js
+// وترتبط بصاحب الطلب عن طريق userId / requesterId.
 
-export const bloodRequests = [
-  {
-    id: "b1",
-    bloodType: "O+",
-    urgency: "عاجلة",
-    hospital: "مستشفى النور التخصصي",
-    distanceKm: 2.3,
-    lat: 30.045,
-    lng: 31.236,
-    status: "قيد التنفيذ",
-    timeline: [
-      {
-        label: "تم إرسال التنبيه للمتبرعين",
-        time: "12:30 م",
-        done: true,
-      },
-      {
-        label: "تم قبول الطلب من متبرع",
-        time: "12:45 م",
-        done: true,
-      },
-      {
-        label: "المتبرع في طريقه إلى المستشفى",
-        time: "1:10 م",
-        done: true,
-      },
-      {
-        label: "تم الوصول إلى المستشفى",
-        time: "1:25 م",
-        done: false,
-      },
-      {
-        label: "تم التبرع بنجاح",
-        time: "1:40 م",
-        done: false,
-      },
-    ],
-  },
-];
+export const bloodRequests = [];
 
 // ============================================================
 // الأدوية
@@ -551,51 +507,18 @@ export const medicines = [
 // ============================================================
 // طلباتي
 // ============================================================
+// الطلبات هنا أصبحت بيانات حقيقية مرتبطة بالمستخدم.
+// لا نضع أي طلبات تجريبية داخل النظام.
 
-export const myRequests = [
-  {
-    id: "r1",
-    title: "أموكسيسيلين 500 مجم",
-    type: "دواء",
-    date: "2026-11-20",
-    status: "تم التسليم",
-  },
-  {
-    id: "r4",
-    title: "طلب تبرع بالدم (O+)",
-    type: "دم",
-    date: "2026-11-10",
-    status: "مكتمل",
-  },
-];
+export const myRequests = [];
 
 // ============================================================
 // الإشعارات
 // ============================================================
+// لا توجد إشعارات تجريبية.
+// كل Notification جديد يجب أن يحتوي على recipientId.
 
-export const notifications = [
-  {
-    id: "n1",
-    title: "تنبيه عاجل",
-    body: "مطلوب فصيلة دم O+",
-    time: "منذ 5 دقائق",
-    type: "urgent",
-  },
-  {
-    id: "n2",
-    title: "تم قبول طلب التبرع",
-    body: "تم قبول تبرعك من أحمد محمد",
-    time: "منذ 30 دقيقة",
-    type: "success",
-  },
-  {
-    id: "n4",
-    title: "تم تسليم الدواء",
-    body: "تم تسليم طلبك بنجاح",
-    time: "منذ 3 ساعات",
-    type: "success",
-  },
-];
+export const notifications = [];
 
 // ============================================================
 // الصيدليات
@@ -647,7 +570,6 @@ export const hospitals = [
 
 export function saveStore() {
   const data = {
-    user,
     users,
     donors,
     bloodRequests,
@@ -695,33 +617,62 @@ export function loadStore() {
 
     const data = JSON.parse(rawData);
 
-    if (data.user) {
-      Object.assign(user, data.user);
-    }
+    // ========================================================
+    // المستخدمون
+    // ========================================================
+    // نحمل المستخدمين الحقيقيين فقط.
+    // أي حساب تجريبي قديم باسم زوزو أو البريد القديم يتم تجاهله.
 
     if (Array.isArray(data.users)) {
       users.splice(
         0,
         users.length,
-        ...data.users
+        ...data.users.filter(
+          (item) =>
+            item &&
+            item.email !== "zizo@example.com" &&
+            item.name !== "زوزو"
+        )
       );
     }
+
+    // ========================================================
+    // المتبرعون
+    // ========================================================
 
     if (Array.isArray(data.donors)) {
       donors.splice(
         0,
         donors.length,
-        ...data.donors
+        ...data.donors.filter(
+          (item) => item && item.userId
+        )
       );
     }
+
+    // ========================================================
+    // طلبات الدم
+    // ========================================================
+    // لا نحمل الطلبات القديمة التي ليس لها صاحب.
+    // الطلب الحقيقي يجب أن يكون مرتبطًا بـ requesterId أو userId.
 
     if (Array.isArray(data.bloodRequests)) {
       bloodRequests.splice(
         0,
         bloodRequests.length,
-        ...data.bloodRequests
+        ...data.bloodRequests.filter(
+          (item) =>
+            item &&
+            (item.requesterId || item.userId)
+        )
       );
     }
+
+    // ========================================================
+    // الأدوية
+    // ========================================================
+    // الـ45 دواء يتم تحميلهم كما هم من db.json.
+    // لا يتم حذف أي دواء.
 
     if (Array.isArray(data.medicines)) {
       medicines.splice(
@@ -731,21 +682,43 @@ export function loadStore() {
       );
     }
 
+    // ========================================================
+    // طلباتي
+    // ========================================================
+    // الطلب القديم الذي ليس له userId يتم تجاهله.
+
     if (Array.isArray(data.myRequests)) {
       myRequests.splice(
         0,
         myRequests.length,
-        ...data.myRequests
+        ...data.myRequests.filter(
+          (item) =>
+            item &&
+            item.userId
+        )
       );
     }
+
+    // ========================================================
+    // الإشعارات
+    // ========================================================
+    // الإشعار القديم الذي ليس له recipientId يتم تجاهله.
 
     if (Array.isArray(data.notifications)) {
       notifications.splice(
         0,
         notifications.length,
-        ...data.notifications
+        ...data.notifications.filter(
+          (item) =>
+            item &&
+            item.recipientId
+        )
       );
     }
+
+    // ========================================================
+    // الصيدليات
+    // ========================================================
 
     if (Array.isArray(data.pharmacies)) {
       pharmacies.splice(
@@ -755,6 +728,10 @@ export function loadStore() {
       );
     }
 
+    // ========================================================
+    // المستشفيات
+    // ========================================================
+
     if (Array.isArray(data.hospitals)) {
       hospitals.splice(
         0,
@@ -763,7 +740,17 @@ export function loadStore() {
       );
     }
 
-    console.log("✅ Database loaded from db.json");
+    // ========================================================
+    // إعادة حفظ البيانات بعد تنظيف الـ demo القديم
+    // ========================================================
+    // بهذه الطريقة db.json نفسه يتم تنظيفه من البيانات
+    // القديمة التي لا تخص مستخدمًا حقيقيًا.
+
+    saveStore();
+
+    console.log(
+      "✅ Database loaded and cleaned from db.json"
+    );
   } catch (error) {
     console.error(
       "Failed to load database:",
@@ -776,5 +763,8 @@ export function loadStore() {
   }
 }
 
+// ============================================================
 // تحميل البيانات عند تشغيل السيرفر
+// ============================================================
+
 loadStore();
