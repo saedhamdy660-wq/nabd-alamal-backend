@@ -402,4 +402,104 @@ router.post(
   }
 );
 
+// =========================
+// DELETE cancel medicine request
+// =========================
+
+router.delete(
+  "/:id/request",
+  (req, res) => {
+    const medicine =
+      medicines.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!medicine) {
+      return res.status(404).json({
+        error:
+          "Medicine not found",
+      });
+    }
+
+    // نأخذ userId من body
+    // أو من query للتوافق
+    const userId =
+      req.body.userId ||
+      req.query.userId;
+
+    if (!userId) {
+      return res.status(400).json({
+        error:
+          "userId is required",
+      });
+    }
+
+    // البحث عن طلب الدواء
+    // الخاص بالمستخدم الحالي
+    const requestIndex =
+      myRequests.findIndex(
+        (item) =>
+          item.userId ===
+            userId &&
+          item.type ===
+            "دواء" &&
+          item.medicineId ===
+            medicine.id
+      );
+
+    if (requestIndex === -1) {
+      return res.status(404).json({
+        error:
+          "لم يتم العثور على طلب قائم لهذا الدواء",
+      });
+    }
+
+    const medicineRequest =
+      myRequests[
+        requestIndex
+      ];
+
+    // الحالات التي يمكن إلغاؤها
+    const activeStatuses = [
+      "قيد المراجعة",
+      "جاري التجهيز",
+      "في انتظار الاستلام",
+    ];
+
+    if (
+      medicineRequest.status &&
+      !activeStatuses.includes(
+        medicineRequest.status
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "لا يمكن إلغاء هذا الطلب في حالته الحالية",
+
+        request:
+          medicineRequest,
+      });
+    }
+
+    // حذف الطلب
+    myRequests.splice(
+      requestIndex,
+      1
+    );
+
+    // حفظ التغيير
+    saveStore();
+
+    res.json({
+      message:
+        "تم إلغاء طلب الدواء بنجاح",
+
+      request:
+        medicineRequest,
+    });
+  }
+);
+
 export default router;
