@@ -1304,11 +1304,10 @@ router.post(
       request.completedAt =
         now.toISOString();
 
-      addTimeline(
-        request,
-        "تم إكمال طلب التبرع بنجاح",
-        now
-      );
+      // مهم:
+      // لا نضيف Timeline جديدة هنا.
+      // آخر مرحلة موجودة بالفعل هي:
+      // "تم التبرع بنجاح"
 
       // تحديث طلب المستخدم مرة أخيرة
       updateMyRequest(
