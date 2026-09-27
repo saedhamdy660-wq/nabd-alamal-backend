@@ -28,13 +28,365 @@ export const bloodRequests = [];
 // ============================================================
 // مراكز وبنوك الدم
 // ============================================================
-// كيان مستقل تمامًا عن المستشفيات وطلبات التبرع.
-// سيتم ربطه لاحقًا بـ routes/blood.js.
-//
-// حاليًا لا نضع بيانات مراكز تجريبية.
-// يمكن إضافة المراكز الحقيقية من خلال الـ API لاحقًا.
+// بيانات حقيقية لمراكز وبنوك دم.
+// الإحداثيات غير مضافة إلا بعد التحقق منها بشكل مستقل.
+// لا نضع إحداثيات وهمية.
 
-export const bloodCenters = [];
+// ============================================================
+
+export const bloodCenters = [
+  // ==========================================================
+  // الشرقية - 5
+  // ==========================================================
+
+  {
+    id: "bc-sharqia-001",
+    name: "المركز الإقليمي لنقل الدم بالزقازيق",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "الشرقية",
+    city: "الزقازيق",
+    address:
+      "مساكن الأحرار طريق بلبيس العاشر، داخل مستشفى الأحرار التعليمي",
+    phone: "0552380742",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-sharqia-002",
+    name: "بنك دم مستشفى منيا القمح المركزي",
+    type: "بنك دم",
+    governorate: "الشرقية",
+    city: "منيا القمح",
+    address: "مستشفى منيا القمح المركزي",
+    phone: "0553660049",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-sharqia-003",
+    name: "بنك دم مستشفى أبوحماد",
+    type: "بنك دم",
+    governorate: "الشرقية",
+    city: "أبوحماد",
+    address: "مستشفى أبوحماد",
+    phone: "0553400257",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "مديرية الشؤون الصحية بالشرقية",
+  },
+
+  {
+    id: "bc-sharqia-004",
+    name: "بنك دم مستشفى أبو كبير",
+    type: "بنك دم",
+    governorate: "الشرقية",
+    city: "أبو كبير",
+    address: "مستشفى أبو كبير",
+    phone: "0553510137",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "مديرية الشؤون الصحية بالشرقية",
+  },
+
+  {
+    id: "bc-sharqia-005",
+    name: "بنك دم مستشفى كفر صقر",
+    type: "بنك دم",
+    governorate: "الشرقية",
+    city: "كفر صقر",
+    address: "مستشفى كفر صقر",
+    phone: "0553986088",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "مديرية الشؤون الصحية بالشرقية",
+  },
+
+  // ==========================================================
+  // القاهرة - 5
+  // ==========================================================
+
+  {
+    id: "bc-cairo-001",
+    name: "بنك دم شبرا العام",
+    type: "بنك دم",
+    governorate: "القاهرة",
+    city: "شبرا",
+    address:
+      "76 شارع المستشفى - شبرا، داخل مستشفى شبرا العام",
+    phone: "0222352325",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-cairo-002",
+    name: "بنك دم المنيرة",
+    type: "بنك دم",
+    governorate: "القاهرة",
+    city: "السيدة زينب",
+    address:
+      "2 شارع نوبار - السيدة زينب، داخل مستشفى المنيرة العام",
+    phone: "0223910230",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-cairo-003",
+    name: "بنك دم منشية البكري",
+    type: "بنك دم",
+    governorate: "القاهرة",
+    city: "منشية البكري",
+    address:
+      "شارع جسر السويس، داخل مستشفى منشية البكري العام",
+    phone: "0222580946",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-cairo-004",
+    name: "بنك دم دار السلام المركزي",
+    type: "بنك دم",
+    governorate: "القاهرة",
+    city: "دار السلام",
+    address:
+      "987 شارع كورنيش النيل - الملك الصالح، داخل مستشفى دار السلام العام",
+    phone: "0222367769",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-cairo-005",
+    name: "بنك دم الخازندارة",
+    type: "بنك دم",
+    governorate: "القاهرة",
+    city: "شبرا",
+    address:
+      "3 شارع شيبان - شبرا، داخل مستشفى الخازندارة العام",
+    phone: "0222057593",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  // ==========================================================
+  // القليوبية - 5
+  // ==========================================================
+
+  {
+    id: "bc-qalyubia-001",
+    name: "المركز الإقليمي لنقل الدم ببنها",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "القليوبية",
+    city: "بنها",
+    address:
+      "أمام مستشفى بنها العام، أعلى مبنى الإسعاف",
+    phone: "0132530179",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "خدمات نقل الدم القومية",
+  },
+
+  {
+    id: "bc-qalyubia-002",
+    name: "بنك دم مستشفى كفر شكر المركزي",
+    type: "بنك دم",
+    governorate: "القليوبية",
+    city: "كفر شكر",
+    address:
+      "كفر شكر - ميت الدريج",
+    phone: "0132520057",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "دليل بنوك الدم بالقليوبية",
+  },
+
+  {
+    id: "bc-qalyubia-003",
+    name: "بنك دم مستشفى ناصر العام",
+    type: "بنك دم",
+    governorate: "القليوبية",
+    city: "شبرا الخيمة",
+    address:
+      "شبرا غرب - شارع نوبار - خلف كرستال عصفور",
+    phone: "0242201468",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "دليل بنوك الدم بالقليوبية",
+  },
+
+  {
+    id: "bc-qalyubia-004",
+    name: "بنك دم مستشفى القناطر الخيرية المركزي",
+    type: "بنك دم",
+    governorate: "القليوبية",
+    city: "القناطر الخيرية",
+    address:
+      "امتداد شارع سور نادي القناطر الخيرية، بجوار مركز صحة الأسرة",
+    phone: "0242188148",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "دليل بنوك الدم بالقليوبية",
+  },
+
+  {
+    id: "bc-qalyubia-005",
+    name: "بنك دم مستشفى طوخ المركزي",
+    type: "بنك دم",
+    governorate: "القليوبية",
+    city: "طوخ",
+    address:
+      "طوخ - شارع البطل أحمد عبدالعزيز",
+    phone: "0132460004",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "دليل بنوك الدم بالقليوبية",
+  },
+
+  // ==========================================================
+  // محافظات أخرى - 5
+  // ==========================================================
+
+  {
+    id: "bc-other-001",
+    name: "المركز الإقليمي لنقل الدم بالإسكندرية",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "الإسكندرية",
+    city: "الإسكندرية",
+    address:
+      "ميدان د. عبد القادر أبو عقادة، مجمع الإسعاف - كوم الدكة",
+    phone: "033923257",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-other-002",
+    name: "المركز الإقليمي لنقل الدم بدمنهور",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "البحيرة",
+    city: "دمنهور",
+    address:
+      "شارع الجمهورية - داخل معهد الطب القومي - كفر غزال",
+    phone: "0453337097",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-other-003",
+    name: "المركز الإقليمي لنقل الدم بالمنصورة",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "الدقهلية",
+    city: "المنصورة",
+    address:
+      "مجمع الإسعاف - شارع الشيخ حسنين",
+    phone: "0502266791",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-other-004",
+    name: "المركز الإقليمي لنقل الدم بطنطا",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "الغربية",
+    city: "طنطا",
+    address:
+      "سيجر - شارع حافظ وهبي",
+    phone: "0403509575",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+
+  {
+    id: "bc-other-005",
+    name: "المركز الإقليمي لنقل الدم بالإسماعيلية",
+    type: "مركز إقليمي لنقل الدم",
+    governorate: "الإسماعيلية",
+    city: "الإسماعيلية",
+    address:
+      "شارع عرايشية مصر - ميدان المطافي",
+    phone: "0643359306",
+    lat: null,
+    lng: null,
+    workingHours: null,
+    services: [],
+    verified: true,
+    source: "وزارة الصحة والسكان المصرية",
+  },
+];
 
 // ============================================================
 // الأدوية
@@ -575,10 +927,7 @@ export function saveStore() {
     users,
     donors,
     bloodRequests,
-
-    // مراكز وبنوك الدم
     bloodCenters,
-
     medicines,
     myRequests,
     notifications,
@@ -673,8 +1022,6 @@ export function loadStore() {
     // ========================================================
     // مراكز وبنوك الدم
     // ========================================================
-    // مستقلة عن المستشفيات وطلبات الدم.
-    // نحملها كما هي من db.json.
 
     if (Array.isArray(data.bloodCenters)) {
       bloodCenters.splice(
