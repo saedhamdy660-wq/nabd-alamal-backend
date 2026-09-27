@@ -5,6 +5,7 @@ import {
   donors,
   hospitals,
   bloodCenters,
+  bloodDonationAppointments,
   users,
   myRequests,
   notifications,
@@ -96,6 +97,25 @@ function findHospital(hospitalId) {
   return hospitals.find(
     (hospital) =>
       hospital.id === hospitalId
+  );
+}
+
+// =========================
+// Find blood center by ID
+// =========================
+
+function findBloodCenter(centerId) {
+  if (!centerId) {
+    return null;
+  }
+
+  if (!Array.isArray(bloodCenters)) {
+    return null;
+  }
+
+  return bloodCenters.find(
+    (center) =>
+      center.id === centerId
   );
 }
 
@@ -1555,9 +1575,9 @@ router.get(
   }
 );
 
-// =========================
+// ============================================================
 // Blood Centers / Blood Banks
-// =========================
+// ============================================================
 //
 // مستقل تمامًا عن المستشفيات
 // وطلبات التبرع بالدم.
@@ -1696,6 +1716,488 @@ router.get(
     res.json(
       bloodCenters
     );
+  }
+);
+
+// ============================================================
+// Blood Donation Appointments
+// ============================================================
+
+// =========================
+// Create appointment
+// =========================
+//
+// POST
+// /blood/centers/:id/appointments
+//
+// Body:
+// {
+//   userId,
+//   appointmentDate,
+//   appointmentTime,
+//   donationType
+// }
+
+router.post(
+  "/centers/:id/appointments",
+  (req, res) => {
+    const {
+      userId,
+      appointmentDate,
+      appointmentTime,
+      donationType,
+    } = req.body;
+
+    if (
+      !userId ||
+      !appointmentDate ||
+      !appointmentTime
+    ) {
+      return res.status(400).json({
+        error:
+          "userId, appointmentDate and appointmentTime are required",
+      });
+    }
+
+    const user =
+      findUser(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        error:
+          "المستخدم غير موجود",
+      });
+    }
+
+    const center =
+      findBloodCenter(
+        req.params.id
+      );
+
+    if (!center) {
+      return res.status(404).json({
+        error:
+          "مركز الدم غير موجود",
+      });
+    }
+
+    const normalizedDonationType =
+      donationType ||
+      "whole_blood";
+
+    const allowedDonationTypes = [
+      "whole_blood",
+      "platelets",
+      "plasma",
+    ];
+
+    if (
+      !allowedDonationTypes.includes(
+        normalizedDonationType
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع التبرع غير صحيح",
+      });
+    }
+
+    // التأكد أن الموعد ليس في الماضي
+    const appointmentDateTime =
+      new Date(
+        `${appointmentDate}T${appointmentTime}`
+      );
+
+    if (
+      Number.isNaN(
+        appointmentDateTime.getTime()
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "التاريخ أو الوقت غير صحيح",
+      });
+    }
+
+    if (
+      appointmentDateTime <=
+      new Date()
+    ) {
+      return res.status(400).json({
+        error:
+          "لا يمكن حجز موعد في الماضي",
+      });
+    }
+
+    // منع حجز نفس المركز في نفس اليوم والوقت
+    const existingAppointment =
+      bloodDonationAppointments.find(
+        (appointment) =>
+          appointment.centerId ===
+            center.id &&
+          appointment.appointmentDate ===
+            appointmentDate &&
+          appointment.appointmentTime ===
+            appointmentTime &&
+          appointment.status !==
+            "cancelled"
+      );
+
+    if (existingAppointment) {
+      return res.status(409).json({
+        error:
+          "هذا الموعد محجوز بالفعل، اختر موعدًا آخر",
+      });
+    }
+
+    // منع المستخدم من عمل حجز مكرر لنفس المركز
+    // في نفس التاريخ والوقت
+    const userExistingAppointment =
+      bloodDonationAppointments.find(
+        (appointment) =>
+          appointment.userId ===
+            userId &&
+          appointment.centerId ===
+            center.id &&
+          appointment.appointmentDate ===
+            appointmentDate &&
+          appointment.appointmentTime ===
+            appointmentTime &&
+          appointment.status !==
+            "cancelled"
+      );
+
+    if (userExistingAppointment) {
+      return res.status(409).json({
+        error:
+          "لديك حجز بالفعل في هذا الموعد",
+        appointment:
+          userExistingAppointment,
+      });
+    }
+
+    const now =
+      getNow();
+
+    const appointment = {
+      id:
+        generateId("ba"),
+
+      userId,
+
+      userName:
+        user.name ||
+        user.fullName ||
+        null,
+
+      centerId:
+        center.id,
+
+      centerName:
+        center.name,
+
+      centerType:
+        center.type ||
+        null,
+
+      governorate:
+        center.governorate ||
+        null,
+
+      city:
+        center.city ||
+        null,
+
+      address:
+        center.address ||
+        null,
+
+      phone:
+        center.phone ||
+        null,
+
+      appointmentDate,
+
+      appointmentTime,
+
+      donationType:
+        normalizedDonationType,
+
+      status:
+        "pending",
+
+      createdAt:
+        now.toISOString(),
+
+      updatedAt:
+        now.toISOString(),
+    };
+
+    bloodDonationAppointments.push(
+      appointment
+    );
+
+    // إشعار للمستخدم
+    addNotification({
+      recipientId:
+        userId,
+
+      kind:
+        "blood_center_appointment",
+
+      title:
+        "تم حجز موعد التبرع",
+
+      body:
+        `تم حجز موعدك في ${center.name} بتاريخ ${appointmentDate} الساعة ${appointmentTime}`,
+
+      type:
+        "success",
+
+      status:
+        "pending",
+
+      appointmentId:
+        appointment.id,
+
+      centerId:
+        center.id,
+
+      centerName:
+        center.name,
+
+      appointmentDate,
+
+      appointmentTime,
+
+      donationType:
+        normalizedDonationType,
+    });
+
+    saveStore();
+
+    res.status(201).json({
+      appointment,
+    });
+  }
+);
+
+// =========================
+// Get user's appointments
+// =========================
+//
+// GET
+// /blood/appointments?userId=USER_ID
+
+router.get(
+  "/appointments",
+  (req, res) => {
+    const {
+      userId,
+    } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        error:
+          "userId is required",
+      });
+    }
+
+    const appointments =
+      bloodDonationAppointments
+        .filter(
+          (appointment) =>
+            appointment.userId ===
+            userId
+        )
+        .sort(
+          (a, b) => {
+            const dateA =
+              new Date(
+                `${a.appointmentDate}T${a.appointmentTime}`
+              ).getTime();
+
+            const dateB =
+              new Date(
+                `${b.appointmentDate}T${b.appointmentTime}`
+              ).getTime();
+
+            return (
+              dateB - dateA
+            );
+          }
+        );
+
+    res.json(
+      appointments
+    );
+  }
+);
+
+// =========================
+// Get one appointment
+// =========================
+//
+// GET
+// /blood/appointments/:id?userId=USER_ID
+
+router.get(
+  "/appointments/:id",
+  (req, res) => {
+    const {
+      userId,
+    } = req.query;
+
+    const appointment =
+      bloodDonationAppointments.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!appointment) {
+      return res.status(404).json({
+        error:
+          "الموعد غير موجود",
+      });
+    }
+
+    if (
+      userId &&
+      appointment.userId !==
+        userId
+    ) {
+      return res.status(403).json({
+        error:
+          "غير مسموح لك بعرض هذا الموعد",
+      });
+    }
+
+    res.json(
+      appointment
+    );
+  }
+);
+
+// =========================
+// Cancel appointment
+// =========================
+//
+// POST
+// /blood/appointments/:id/cancel
+//
+// Body:
+// {
+//   userId
+// }
+
+router.post(
+  "/appointments/:id/cancel",
+  (req, res) => {
+    const {
+      userId,
+    } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        error:
+          "userId is required",
+      });
+    }
+
+    const appointment =
+      bloodDonationAppointments.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!appointment) {
+      return res.status(404).json({
+        error:
+          "الموعد غير موجود",
+      });
+    }
+
+    if (
+      appointment.userId !==
+      userId
+    ) {
+      return res.status(403).json({
+        error:
+          "غير مسموح لك بإلغاء هذا الموعد",
+      });
+    }
+
+    if (
+      appointment.status ===
+      "cancelled"
+    ) {
+      return res.status(409).json({
+        error:
+          "تم إلغاء هذا الموعد بالفعل",
+      });
+    }
+
+    if (
+      appointment.status ===
+      "completed"
+    ) {
+      return res.status(409).json({
+        error:
+          "لا يمكن إلغاء موعد مكتمل",
+      });
+    }
+
+    appointment.status =
+      "cancelled";
+
+    appointment.cancelledAt =
+      new Date().toISOString();
+
+    appointment.updatedAt =
+      new Date().toISOString();
+
+    addNotification({
+      recipientId:
+        userId,
+
+      kind:
+        "blood_center_appointment_cancelled",
+
+      title:
+        "تم إلغاء موعد التبرع",
+
+      body:
+        `تم إلغاء موعدك في ${appointment.centerName} بتاريخ ${appointment.appointmentDate} الساعة ${appointment.appointmentTime}`,
+
+      type:
+        "info",
+
+      status:
+        "cancelled",
+
+      appointmentId:
+        appointment.id,
+
+      centerId:
+        appointment.centerId,
+
+      centerName:
+        appointment.centerName,
+
+      appointmentDate:
+        appointment.appointmentDate,
+
+      appointmentTime:
+        appointment.appointmentTime,
+    });
+
+    saveStore();
+
+    res.json({
+      appointment,
+    });
   }
 );
 
