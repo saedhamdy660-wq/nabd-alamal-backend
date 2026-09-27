@@ -81,9 +81,6 @@ function findDonorByUserId(userId) {
 // =========================
 // Find hospital by ID
 // =========================
-//
-// المستشفى يتم اختيارها من صاحب الطلب.
-// لا نستخدم موقع المستخدم لاختيار المستشفى.
 
 function findHospital(hospitalId) {
   if (!hospitalId) {
@@ -191,10 +188,17 @@ function createMyRequest(request) {
     userId:
       request.requesterId,
 
-    type: "دم",
+    type:
+      request.requestType ===
+      "blood-bank"
+        ? "بنك دم"
+        : "دم",
 
     title:
-      `طلب تبرع بالدم (${request.bloodType})`,
+      request.requestType ===
+      "blood-bank"
+        ? `طلب دم من بنك الدم (${request.bloodType})`
+        : `طلب تبرع بالدم (${request.bloodType})`,
 
     requestType:
       request.requestType ||
@@ -221,6 +225,26 @@ function createMyRequest(request) {
 
     hospitalId:
       request.hospitalId ||
+      null,
+
+    centerId:
+      request.centerId ||
+      null,
+
+    centerName:
+      request.centerName ||
+      null,
+
+    bloodComponent:
+      request.bloodComponent ||
+      null,
+
+    units:
+      request.units ||
+      null,
+
+    urgency:
+      request.urgency ||
       null,
 
     locationType:
@@ -308,6 +332,31 @@ function updateMyRequest(request) {
     request.hospitalId ||
     myRequest.hospitalId;
 
+  myRequest.centerId =
+    request.centerId ||
+    myRequest.centerId ||
+    null;
+
+  myRequest.centerName =
+    request.centerName ||
+    myRequest.centerName ||
+    null;
+
+  myRequest.bloodComponent =
+    request.bloodComponent ||
+    myRequest.bloodComponent ||
+    null;
+
+  myRequest.units =
+    request.units ??
+    myRequest.units ??
+    null;
+
+  myRequest.urgency =
+    request.urgency ||
+    myRequest.urgency ||
+    null;
+
   myRequest.locationType =
     request.locationType ||
     myRequest.locationType ||
@@ -350,11 +399,20 @@ router.get(
     const activeRequests =
       bloodRequests.filter(
         (request) => {
-          // طلبات التبرع المباشر لها
+          // الطلبات المباشرة لها
           // endpoint خاص بها
           if (
             request.requestType ===
             "direct-donation"
+          ) {
+            return false;
+          }
+
+          // طلبات بنك الدم لها
+          // endpoint خاص بها
+          if (
+            request.requestType ===
+            "blood-bank"
           ) {
             return false;
           }
@@ -532,7 +590,6 @@ router.post(
 // Direct Donation Requests
 // =========================
 
-// المستخدم يرسل طلب تبرع مباشر لمتبرع معين
 router.post(
   "/donation-requests",
   (req, res) => {
@@ -1343,9 +1400,6 @@ router.post(
 // Donors
 // =========================
 
-// IMPORTANT:
-// /donors/nearby MUST come before /donors/:id
-
 router.get(
   "/donors/nearby",
   (req, res) => {
@@ -1424,7 +1478,6 @@ router.get(
               ) {
                 return {
                   ...donor,
-
                   distanceKm:
                     null,
                 };
@@ -1440,7 +1493,6 @@ router.get(
 
               return {
                 ...donor,
-
                 distanceKm:
                   Math.round(
                     distance * 10
@@ -1578,18 +1630,10 @@ router.get(
 // ============================================================
 // Blood Centers / Blood Banks
 // ============================================================
-//
-// مستقل تمامًا عن المستشفيات
-// وطلبات التبرع بالدم.
 
 // =========================
 // GET nearby blood centers
 // =========================
-//
-// مهم:
-// هذا الـroute يجب أن يكون قبل
-// /centers/:id حتى لا يتم اعتبار
-// "nearby" كأنه ID.
 
 router.get(
   "/centers/nearby",
@@ -1639,7 +1683,6 @@ router.get(
             ) {
               return {
                 ...center,
-
                 distanceKm:
                   null,
               };
@@ -1655,7 +1698,6 @@ router.get(
 
             return {
               ...center,
-
               distanceKm:
                 Math.round(
                   distance * 10
@@ -1726,17 +1768,6 @@ router.get(
 // =========================
 // Create appointment
 // =========================
-//
-// POST
-// /blood/centers/:id/appointments
-//
-// Body:
-// {
-//   userId,
-//   appointmentDate,
-//   appointmentTime,
-//   donationType
-// }
 
 router.post(
   "/centers/:id/appointments",
@@ -1802,7 +1833,6 @@ router.post(
       });
     }
 
-    // التأكد أن الموعد ليس في الماضي
     const appointmentDateTime =
       new Date(
         `${appointmentDate}T${appointmentTime}`
@@ -1829,7 +1859,6 @@ router.post(
       });
     }
 
-    // منع حجز نفس المركز في نفس اليوم والوقت
     const existingAppointment =
       bloodDonationAppointments.find(
         (appointment) =>
@@ -1850,8 +1879,6 @@ router.post(
       });
     }
 
-    // منع المستخدم من عمل حجز مكرر لنفس المركز
-    // في نفس التاريخ والوقت
     const userExistingAppointment =
       bloodDonationAppointments.find(
         (appointment) =>
@@ -1937,7 +1964,6 @@ router.post(
       appointment
     );
 
-    // إشعار للمستخدم
     addNotification({
       recipientId:
         userId,
@@ -1985,9 +2011,6 @@ router.post(
 // =========================
 // Get user's appointments
 // =========================
-//
-// GET
-// /blood/appointments?userId=USER_ID
 
 router.get(
   "/appointments",
@@ -2037,9 +2060,6 @@ router.get(
 // =========================
 // Get one appointment
 // =========================
-//
-// GET
-// /blood/appointments/:id?userId=USER_ID
 
 router.get(
   "/appointments/:id",
@@ -2082,14 +2102,6 @@ router.get(
 // =========================
 // Cancel appointment
 // =========================
-//
-// POST
-// /blood/appointments/:id/cancel
-//
-// Body:
-// {
-//   userId
-// }
 
 router.post(
   "/appointments/:id/cancel",
@@ -2197,6 +2209,598 @@ router.post(
 
     res.json({
       appointment,
+    });
+  }
+);
+
+// ============================================================
+// Blood Bank Requests
+// ============================================================
+//
+// ده نظام مختلف عن:
+// 1. طلبات التبرع العامة
+// 2. التبرع المباشر لمتبرع
+//
+// هنا المستخدم بيطلب دم من بنك دم/مركز دم.
+
+// =========================
+// Create Blood Bank Request
+// =========================
+//
+// POST
+// /blood/centers/:id/blood-requests
+//
+// Body:
+//
+// {
+//   userId,
+//   bloodType,
+//   bloodComponent,
+//   units,
+//   urgency,
+//   hospitalId
+// }
+
+router.post(
+  "/centers/:id/blood-requests",
+  (req, res) => {
+    const {
+      userId,
+      bloodType,
+      bloodComponent,
+      units,
+      urgency,
+      hospitalId,
+    } = req.body;
+
+    if (
+      !userId ||
+      !bloodType ||
+      !hospitalId
+    ) {
+      return res.status(400).json({
+        error:
+          "userId, bloodType and hospitalId are required",
+      });
+    }
+
+    const user =
+      findUser(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        error:
+          "المستخدم غير موجود",
+      });
+    }
+
+    const center =
+      findBloodCenter(
+        req.params.id
+      );
+
+    if (!center) {
+      return res.status(404).json({
+        error:
+          "مركز الدم غير موجود",
+      });
+    }
+
+    const hospital =
+      findHospital(
+        hospitalId
+      );
+
+    if (!hospital) {
+      return res.status(404).json({
+        error:
+          "المستشفى المختارة غير موجودة",
+      });
+    }
+
+    const allowedBloodComponents = [
+      "whole_blood",
+      "red_cells",
+      "platelets",
+      "plasma",
+    ];
+
+    const normalizedComponent =
+      bloodComponent ||
+      "whole_blood";
+
+    if (
+      !allowedBloodComponents.includes(
+        normalizedComponent
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع مكون الدم غير صحيح",
+      });
+    }
+
+    const normalizedUnits =
+      Number(units);
+
+    if (
+      !Number.isInteger(
+        normalizedUnits
+      ) ||
+      normalizedUnits < 1
+    ) {
+      return res.status(400).json({
+        error:
+          "عدد الوحدات يجب أن يكون رقمًا صحيحًا أكبر من صفر",
+      });
+    }
+
+    const allowedUrgencies = [
+      "عادية",
+      "عاجلة",
+      "طوارئ",
+    ];
+
+    const normalizedUrgency =
+      urgency ||
+      "عاجلة";
+
+    if (
+      !allowedUrgencies.includes(
+        normalizedUrgency
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "درجة الاستعجال غير صحيحة",
+      });
+    }
+
+    // منع وجود طلب مفتوح لنفس المستخدم
+    // لنفس المركز ونفس الفصيلة والمكون
+    const existingRequest =
+      bloodRequests.find(
+        (request) =>
+          request.requestType ===
+            "blood-bank" &&
+          request.requesterId ===
+            userId &&
+          request.centerId ===
+            center.id &&
+          request.bloodType ===
+            bloodType &&
+          request.bloodComponent ===
+            normalizedComponent &&
+          (
+            request.status ===
+              "قيد المراجعة" ||
+            request.status ===
+              "قيد التجهيز"
+          )
+      );
+
+    if (existingRequest) {
+      return res.status(409).json({
+        error:
+          "لديك بالفعل طلب مفتوح لنفس الفصيلة والمكون في هذا المركز",
+
+        request:
+          existingRequest,
+      });
+    }
+
+    const now =
+      getNow();
+
+    const requestId =
+      generateId("br");
+
+    const newRequest = {
+      id:
+        requestId,
+
+      requestType:
+        "blood-bank",
+
+      requesterId:
+        userId,
+
+      userId,
+
+      requesterName:
+        user.name ||
+        user.fullName ||
+        null,
+
+      centerId:
+        center.id,
+
+      centerName:
+        center.name,
+
+      centerType:
+        center.type ||
+        null,
+
+      bloodType,
+
+      bloodComponent:
+        normalizedComponent,
+
+      units:
+        normalizedUnits,
+
+      urgency:
+        normalizedUrgency,
+
+      hospitalId:
+        hospital.id,
+
+      hospital:
+        hospital.name ||
+        hospital.title ||
+        hospital.hospitalName ||
+        "المستشفى المحدد",
+
+      locationType:
+        "hospital",
+
+      lat:
+        Number.isFinite(
+          Number(hospital.lat)
+        )
+          ? Number(hospital.lat)
+          : null,
+
+      lng:
+        Number.isFinite(
+          Number(hospital.lng)
+        )
+          ? Number(hospital.lng)
+          : null,
+
+      address:
+        hospital.address ||
+        null,
+
+      status:
+        "قيد المراجعة",
+
+      createdAt:
+        now.toISOString(),
+
+      updatedAt:
+        now.toISOString(),
+
+      timeline: [
+        {
+          label:
+            "تم إرسال طلب الدم إلى بنك الدم",
+
+          time:
+            getTime(now),
+
+          done: true,
+        },
+      ],
+    };
+
+    bloodRequests.push(
+      newRequest
+    );
+
+    createMyRequest(
+      newRequest
+    );
+
+    addNotification({
+      recipientId:
+        userId,
+
+      kind:
+        "blood_bank_request",
+
+      title:
+        "تم إرسال طلب الدم",
+
+      body:
+        `تم إرسال طلبك إلى ${center.name} لفصيلة ${bloodType} بعدد ${normalizedUnits} وحدة`,
+
+      type:
+        "success",
+
+      status:
+        "pending",
+
+      requestId,
+
+      centerId:
+        center.id,
+
+      centerName:
+        center.name,
+
+      bloodType,
+
+      bloodComponent:
+        normalizedComponent,
+
+      units:
+        normalizedUnits,
+
+      urgency:
+        normalizedUrgency,
+    });
+
+    saveStore();
+
+    res.status(201).json({
+      request:
+        newRequest,
+    });
+  }
+);
+
+// =========================
+// Get user's Blood Bank Requests
+// =========================
+//
+// GET
+// /blood/blood-bank-requests?userId=USER_ID
+
+router.get(
+  "/blood-bank-requests",
+  (req, res) => {
+    const {
+      userId,
+    } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        error:
+          "userId is required",
+      });
+    }
+
+    const requests =
+      bloodRequests
+        .filter(
+          (request) =>
+            request.requestType ===
+              "blood-bank" &&
+            request.requesterId ===
+              userId
+        )
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt
+            ).getTime() -
+            new Date(
+              a.createdAt
+            ).getTime()
+        );
+
+    res.json(
+      requests
+    );
+  }
+);
+
+// =========================
+// Get Blood Bank Requests
+// for specific center
+// =========================
+//
+// GET
+// /blood/centers/:id/blood-requests
+
+router.get(
+  "/centers/:id/blood-requests",
+  (req, res) => {
+    const center =
+      findBloodCenter(
+        req.params.id
+      );
+
+    if (!center) {
+      return res.status(404).json({
+        error:
+          "مركز الدم غير موجود",
+      });
+    }
+
+    const requests =
+      bloodRequests
+        .filter(
+          (request) =>
+            request.requestType ===
+              "blood-bank" &&
+            request.centerId ===
+              center.id
+        )
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt
+            ).getTime() -
+            new Date(
+              a.createdAt
+            ).getTime()
+        );
+
+    res.json(
+      requests
+    );
+  }
+);
+
+// =========================
+// Get one Blood Bank Request
+// =========================
+//
+// GET
+// /blood/blood-bank-requests/:id?userId=USER_ID
+
+router.get(
+  "/blood-bank-requests/:id",
+  (req, res) => {
+    const {
+      userId,
+    } = req.query;
+
+    const request =
+      bloodRequests.find(
+        (item) =>
+          item.id ===
+            req.params.id &&
+          item.requestType ===
+            "blood-bank"
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "طلب بنك الدم غير موجود",
+      });
+    }
+
+    if (
+      userId &&
+      request.requesterId !==
+        userId
+    ) {
+      return res.status(403).json({
+        error:
+          "غير مسموح لك بعرض هذا الطلب",
+      });
+    }
+
+    res.json(
+      request
+    );
+  }
+);
+
+// =========================
+// Cancel Blood Bank Request
+// =========================
+//
+// POST
+// /blood/blood-bank-requests/:id/cancel
+//
+// Body:
+// {
+//   userId
+// }
+
+router.post(
+  "/blood-bank-requests/:id/cancel",
+  (req, res) => {
+    const {
+      userId,
+    } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        error:
+          "userId is required",
+      });
+    }
+
+    const request =
+      bloodRequests.find(
+        (item) =>
+          item.id ===
+            req.params.id &&
+          item.requestType ===
+            "blood-bank"
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "طلب بنك الدم غير موجود",
+      });
+    }
+
+    if (
+      request.requesterId !==
+      userId
+    ) {
+      return res.status(403).json({
+        error:
+          "غير مسموح لك بإلغاء هذا الطلب",
+      });
+    }
+
+    if (
+      request.status ===
+        "تم الإلغاء" ||
+      request.status ===
+        "مكتمل"
+    ) {
+      return res.status(409).json({
+        error:
+          "لا يمكن إلغاء هذا الطلب",
+      });
+    }
+
+    const now =
+      getNow();
+
+    request.status =
+      "تم الإلغاء";
+
+    request.cancelledAt =
+      now.toISOString();
+
+    request.updatedAt =
+      now.toISOString();
+
+    addTimeline(
+      request,
+      "تم إلغاء طلب الدم",
+      now
+    );
+
+    updateMyRequest(
+      request
+    );
+
+    addNotification({
+      recipientId:
+        userId,
+
+      kind:
+        "blood_bank_request_cancelled",
+
+      title:
+        "تم إلغاء طلب الدم",
+
+      body:
+        `تم إلغاء طلب الدم المرسل إلى ${request.centerName}`,
+
+      type:
+        "info",
+
+      status:
+        "cancelled",
+
+      requestId:
+        request.id,
+
+      centerId:
+        request.centerId,
+
+      centerName:
+        request.centerName,
+    });
+
+    saveStore();
+
+    res.json({
+      request,
     });
   }
 );
