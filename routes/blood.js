@@ -494,8 +494,6 @@ router.post(
       newRequest
     );
 
-    // لو الطلب مرتبط بمستخدم
-    // نحفظه في طلباته فقط
     if (ownerId) {
       createMyRequest(
         newRequest
@@ -524,10 +522,6 @@ router.post(
       hospitalId,
     } = req.body;
 
-    // =========================
-    // التحقق من البيانات
-    // =========================
-
     if (
       !requesterId ||
       !donorId ||
@@ -539,18 +533,10 @@ router.post(
       });
     }
 
-    // =========================
-    // البحث عن المستخدم
-    // =========================
-
     const requester =
       findUser(
         requesterId
       );
-
-    // =========================
-    // البحث عن المتبرع
-    // =========================
 
     const donor =
       findDonor(
@@ -571,10 +557,6 @@ router.post(
       });
     }
 
-    // =========================
-    // البحث عن المستشفى المختارة
-    // =========================
-
     const selectedHospital =
       findHospital(
         hospitalId
@@ -587,10 +569,6 @@ router.post(
       });
     }
 
-    // =========================
-    // منع إرسال طلب للنفس
-    // =========================
-
     if (
       donor.userId ===
       requester.id
@@ -601,10 +579,6 @@ router.post(
       });
     }
 
-    // =========================
-    // منع إرسال طلب لمتبرع مشغول
-    // =========================
-
     if (
       donor.available === false
     ) {
@@ -613,10 +587,6 @@ router.post(
           "هذا المتبرع مرتبط حاليًا بطلب تبرع آخر",
       });
     }
-
-    // =========================
-    // منع تكرار نفس الطلب
-    // =========================
 
     const alreadyPending =
       bloodRequests.find(
@@ -700,11 +670,6 @@ router.post(
       ],
     };
 
-    // =========================
-    // حفظ المستشفى التي اختارها
-    // صاحب الطلب
-    // =========================
-
     const hospitalAttached =
       attachSelectedHospital(
         newRequest,
@@ -722,17 +687,9 @@ router.post(
       newRequest
     );
 
-    // =========================
-    // تسجيل الطلب لصاحب الطلب
-    // =========================
-
     createMyRequest(
       newRequest
     );
-
-    // =========================
-    // إشعار المتبرع
-    // =========================
 
     const donorNotification = {
       recipientId:
@@ -867,10 +824,6 @@ router.post(
         respondingDonorUserId
       );
 
-    // =========================
-    // ACCEPT
-    // =========================
-
     if (
       action === "accept"
     ) {
@@ -886,16 +839,11 @@ router.post(
         now
       );
 
-      // المتبرع أصبح مشغولًا
       if (respondingDonor) {
         respondingDonor.available =
           false;
       }
     }
-
-    // =========================
-    // REJECT
-    // =========================
 
     if (
       action === "reject"
@@ -918,17 +866,9 @@ router.post(
       }
     }
 
-    // =========================
-    // تحديث طلب صاحب الطلب
-    // =========================
-
     updateMyRequest(
       request
     );
-
-    // =========================
-    // تحديث إشعار المتبرع
-    // =========================
 
     const donorNotification =
       notifications.find(
@@ -948,10 +888,6 @@ router.post(
       donorNotification.actionedAt =
         now.toISOString();
     }
-
-    // =========================
-    // إشعار صاحب الطلب
-    // =========================
 
     const requesterNotification = {
       recipientId:
@@ -1065,10 +1001,6 @@ router.post(
     let newStatus = "";
     let stageLabel = "";
 
-    // =========================
-    // المتبرع في الطريق
-    // =========================
-
     if (
       stage === "on_way"
     ) {
@@ -1089,10 +1021,6 @@ router.post(
         "المتبرع في طريقه إلى المستشفى";
     }
 
-    // =========================
-    // تم الوصول
-    // =========================
-
     if (
       stage === "arrived"
     ) {
@@ -1112,10 +1040,6 @@ router.post(
       stageLabel =
         "تم الوصول إلى المستشفى";
     }
-
-    // =========================
-    // تم التبرع
-    // =========================
 
     if (
       stage === "completed"
@@ -1163,17 +1087,9 @@ router.post(
         now.toISOString();
     }
 
-    // =========================
-    // تحديث طلب المستخدم
-    // =========================
-
     updateMyRequest(
       request
     );
-
-    // =========================
-    // إشعارات مراحل التبرع
-    // =========================
 
     if (
       stage === "on_way"
@@ -1273,10 +1189,6 @@ router.post(
       });
     }
 
-    // =========================
-    // انتهاء التبرع
-    // =========================
-
     if (
       stage === "completed"
     ) {
@@ -1298,24 +1210,16 @@ router.post(
           getDate(now);
       }
 
-      // الحالة النهائية للطلب
       request.status =
         "مكتمل";
 
       request.completedAt =
         now.toISOString();
 
-      // مهم:
-      // لا نضيف Timeline جديدة هنا.
-      // آخر مرحلة موجودة بالفعل هي:
-      // "تم التبرع بنجاح"
-
-      // تحديث طلب المستخدم مرة أخيرة
       updateMyRequest(
         request
       );
 
-      // إشعار صاحب الطلب
       addNotification({
         recipientId:
           request.requesterId,
@@ -1361,7 +1265,6 @@ router.post(
           null,
       });
 
-      // إشعار للمتبرع أيضًا
       addNotification({
         recipientId:
           request.donorUserId,
@@ -1436,7 +1339,6 @@ router.get(
     let filtered =
       [...donors];
 
-    // استبعاد المستخدم الحالي
     if (userId) {
       filtered =
         filtered.filter(
@@ -1446,14 +1348,12 @@ router.get(
         );
     }
 
-    // استبعاد المتبرعين المشغولين
     filtered =
       filtered.filter(
         (donor) =>
           donor.available !== false
       );
 
-    // فلترة فصيلة الدم
     if (bloodType) {
       filtered =
         filtered.filter(
@@ -1463,7 +1363,6 @@ router.get(
         );
     }
 
-    // حساب المسافة
     if (
       lat !== undefined &&
       lng !== undefined
@@ -1532,7 +1431,6 @@ router.get(
       }
     }
 
-    // ترتيب الأقرب
     filtered.sort(
       (a, b) => {
         const distanceA =
@@ -1598,11 +1496,6 @@ router.get(
 // =========================
 // Old donor response
 // =========================
-//
-// Legacy endpoint.
-// موجود للتوافق مع الصفحة الحالية.
-// لا يغير بيانات الطلبات الخاصة
-// بالتبرع المباشر.
 
 router.post(
   "/requests/:id/respond",
@@ -1668,59 +1561,15 @@ router.get(
 //
 // مستقل تمامًا عن المستشفيات
 // وطلبات التبرع بالدم.
-// هذه البيانات مخصصة للمراكز
-// وبنوك الدم الرسمية.
-
-router.get(
-  "/centers",
-  (req, res) => {
-    if (!Array.isArray(bloodCenters)) {
-      return res.json([]);
-    }
-
-    res.json(
-      bloodCenters
-    );
-  }
-);
 
 // =========================
-// Get one Blood Center
+// GET nearby blood centers
 // =========================
-
-router.get(
-  "/centers/:id",
-  (req, res) => {
-    if (!Array.isArray(bloodCenters)) {
-      return res.status(404).json({
-        error:
-          "Blood center not found",
-      });
-    }
-
-    const center =
-      bloodCenters.find(
-        (item) =>
-          item.id ===
-          req.params.id
-      );
-
-    if (!center) {
-      return res.status(404).json({
-        error:
-          "Blood center not found",
-      });
-    }
-
-    res.json(
-      center
-    );
-  }
-);
-
-// =========================
-// Nearby Blood Centers
-// =========================
+//
+// مهم:
+// هذا الـroute يجب أن يكون قبل
+// /centers/:id حتى لا يتم اعتبار
+// "nearby" كأنه ID.
 
 router.get(
   "/centers/nearby",
@@ -1795,7 +1644,6 @@ router.get(
           }
         );
 
-      // ترتيب المراكز من الأقرب للأبعد
       centers.sort(
         (a, b) => {
           const distanceA =
@@ -1830,6 +1678,57 @@ router.get(
 
     res.json(
       centers
+    );
+  }
+);
+
+// =========================
+// GET all blood centers
+// =========================
+
+router.get(
+  "/centers",
+  (req, res) => {
+    if (!Array.isArray(bloodCenters)) {
+      return res.json([]);
+    }
+
+    res.json(
+      bloodCenters
+    );
+  }
+);
+
+// =========================
+// GET one Blood Center
+// =========================
+
+router.get(
+  "/centers/:id",
+  (req, res) => {
+    if (!Array.isArray(bloodCenters)) {
+      return res.status(404).json({
+        error:
+          "Blood center not found",
+      });
+    }
+
+    const center =
+      bloodCenters.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!center) {
+      return res.status(404).json({
+        error:
+          "Blood center not found",
+      });
+    }
+
+    res.json(
+      center
     );
   }
 );
