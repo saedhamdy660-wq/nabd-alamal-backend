@@ -4,6 +4,7 @@ import {
   bloodRequests,
   donors,
   hospitals,
+  bloodCenters,
   users,
   myRequests,
   notifications,
@@ -1657,6 +1658,178 @@ router.get(
   (req, res) => {
     res.json(
       hospitals
+    );
+  }
+);
+
+// =========================
+// Blood Centers / Blood Banks
+// =========================
+//
+// مستقل تمامًا عن المستشفيات
+// وطلبات التبرع بالدم.
+// هذه البيانات مخصصة للمراكز
+// وبنوك الدم الرسمية.
+
+router.get(
+  "/centers",
+  (req, res) => {
+    if (!Array.isArray(bloodCenters)) {
+      return res.json([]);
+    }
+
+    res.json(
+      bloodCenters
+    );
+  }
+);
+
+// =========================
+// Get one Blood Center
+// =========================
+
+router.get(
+  "/centers/:id",
+  (req, res) => {
+    if (!Array.isArray(bloodCenters)) {
+      return res.status(404).json({
+        error:
+          "Blood center not found",
+      });
+    }
+
+    const center =
+      bloodCenters.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!center) {
+      return res.status(404).json({
+        error:
+          "Blood center not found",
+      });
+    }
+
+    res.json(
+      center
+    );
+  }
+);
+
+// =========================
+// Nearby Blood Centers
+// =========================
+
+router.get(
+  "/centers/nearby",
+  (req, res) => {
+    if (!Array.isArray(bloodCenters)) {
+      return res.json([]);
+    }
+
+    const {
+      lat,
+      lng,
+    } = req.query;
+
+    let centers =
+      [...bloodCenters];
+
+    const userLat =
+      Number(lat);
+
+    const userLng =
+      Number(lng);
+
+    if (
+      Number.isFinite(userLat) &&
+      Number.isFinite(userLng)
+    ) {
+      centers =
+        centers.map(
+          (center) => {
+            const centerLat =
+              Number(
+                center.lat
+              );
+
+            const centerLng =
+              Number(
+                center.lng
+              );
+
+            if (
+              !Number.isFinite(
+                centerLat
+              ) ||
+              !Number.isFinite(
+                centerLng
+              )
+            ) {
+              return {
+                ...center,
+
+                distanceKm:
+                  null,
+              };
+            }
+
+            const distance =
+              calculateDistance(
+                userLat,
+                userLng,
+                centerLat,
+                centerLng
+              );
+
+            return {
+              ...center,
+
+              distanceKm:
+                Math.round(
+                  distance * 10
+                ) / 10,
+            };
+          }
+        );
+
+      // ترتيب المراكز من الأقرب للأبعد
+      centers.sort(
+        (a, b) => {
+          const distanceA =
+            Number.isFinite(
+              Number(
+                a.distanceKm
+              )
+            )
+              ? Number(
+                  a.distanceKm
+                )
+              : Infinity;
+
+          const distanceB =
+            Number.isFinite(
+              Number(
+                b.distanceKm
+              )
+            )
+              ? Number(
+                  b.distanceKm
+                )
+              : Infinity;
+
+          return (
+            distanceA -
+            distanceB
+          );
+        }
+      );
+    }
+
+    res.json(
+      centers
     );
   }
 );
