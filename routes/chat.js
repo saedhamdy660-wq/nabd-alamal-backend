@@ -71,6 +71,10 @@ function searchMedicines(query) {
   const value =
     normalizeText(query);
 
+  if (!value) {
+    return [];
+  }
+
   return medicines
     .filter((medicine) => {
       const name =
@@ -184,6 +188,146 @@ function getCenterInfo(center) {
 }
 
 // ============================================================
+// Medicine helpers
+// ============================================================
+
+function cleanMedicineQuery(text) {
+  let value = normalizeText(text);
+
+  const phrasesToRemove = [
+    "عايز أبحث عن دواء",
+    "عايز ابحث عن دواء",
+    "عايز أبحث عن دوا",
+    "عايز ابحث عن دوا",
+    "ابحث عن دواء",
+    "ابحث عن دوا",
+    "بحث عن دواء",
+    "بحث عن دوا",
+    "ممكن أبحث عن دواء",
+    "ممكن ابحث عن دواء",
+    "ممكن دواء",
+    "عايز دواء",
+    "عايزة دواء",
+    "عايز دوا",
+    "عايزة دوا",
+    "دواء اسمه",
+    "دوا اسمه",
+    "اسم الدواء",
+    "اسم دوا",
+    "دواء",
+    "دوا",
+    "عن"
+  ];
+
+  phrasesToRemove.forEach(
+    (phrase) => {
+      value = value.replace(
+        normalizeText(phrase),
+        ""
+      );
+    }
+  );
+
+  return value
+    .replace(
+      /^(لي|لـ|لل|في|من|هو)\s+/,
+      ""
+    )
+    .trim();
+}
+
+function getMedicineResultsFromText(text) {
+  if (!Array.isArray(medicines)) {
+    return [];
+  }
+
+  const cleaned =
+    cleanMedicineQuery(text);
+
+  if (cleaned) {
+    const directResults =
+      searchMedicines(cleaned);
+
+    if (directResults.length) {
+      return directResults;
+    }
+  }
+
+  return [];
+}
+
+// ============================================================
+// Governorates
+// ============================================================
+
+const governorates = [
+  "الشرقية",
+  "القاهرة",
+  "القليوبية",
+  "الجيزة",
+  "الإسكندرية",
+  "الدقهلية",
+  "الغربية",
+  "المنوفية",
+  "البحيرة",
+  "بورسعيد",
+  "الإسماعيلية",
+  "السويس",
+  "الفيوم",
+  "بني سويف",
+  "المنيا",
+  "أسيوط",
+  "سوهاج",
+  "قنا",
+  "الأقصر",
+  "أسوان",
+];
+
+function getMatchedGovernorate(text) {
+  return governorates.find(
+    (governorate) =>
+      text.includes(
+        normalizeText(
+          governorate
+        )
+      )
+  );
+}
+
+// ============================================================
+// Center response
+// ============================================================
+
+function formatCentersReply(
+  centers,
+  title = ""
+) {
+  if (!centers.length) {
+    return "مش لاقي مراكز دم متاحة حاليًا في البيانات.";
+  }
+
+  const centerText =
+    centers
+      .map(
+        (
+          center,
+          index
+        ) =>
+          `${index + 1}. ${getCenterInfo(
+            center
+          )}`
+      )
+      .join("\n\n");
+
+  return (
+    (title
+      ? `${title}\n\n`
+      : "") +
+    centerText
+  );
+}
+
+// ============================================================
 // POST /api/chat
 // ============================================================
 
@@ -250,9 +394,7 @@ router.post(
       // ======================================================
 
       if (
-        text.includes(
-          "مساعدة"
-        ) ||
+        text.includes("مساعدة") ||
         text.includes(
           "تقدر تعمل ايه"
         ) ||
@@ -261,6 +403,12 @@ router.post(
         ) ||
         text.includes(
           "ممكن تساعدني"
+        ) ||
+        text.includes(
+          "ايه الخدمات"
+        ) ||
+        text.includes(
+          "الخدمات"
         )
       ) {
         return res.json({
@@ -270,98 +418,48 @@ router.post(
             "🔎 البحث عن متبرعين\n" +
             "🏥 مراكز وبنوك الدم\n" +
             "📅 مواعيد التبرع\n" +
-            "💊 البحث عن الأدوية\n\n" +
+            "💊 البحث عن الأدوية\n" +
+            "🏨 المستشفيات\n\n" +
             "اكتبلي محتاج إيه وأنا هحاول أساعدك.",
         });
       }
 
       // ======================================================
-      // Blood centers
+      // Blood centers - governorate first
       // ======================================================
-
-      if (
-        text.includes("مركز دم") ||
-        text.includes("مراكز الدم") ||
-        text.includes("بنك دم") ||
-        text.includes("بنوك الدم") ||
-        text.includes("مركز") &&
-          text.includes("دم")
-      ) {
-        const centers =
-          findCenters();
-
-        if (!centers.length) {
-          return res.json({
-            reply:
-              "مش لاقي مراكز دم متاحة حاليًا في البيانات.",
-          });
-        }
-
-        const centerText =
-          centers
-            .map(
-              (
-                center,
-                index
-              ) =>
-                `${index + 1}. ${getCenterInfo(
-                  center
-                )}`
-            )
-            .join("\n\n");
-
-        return res.json({
-          reply:
-            `عندنا حاليًا ${bloodCenters.length} مركز/بنك دم مسجل.\n\n` +
-            `دي بعض المراكز المتاحة:\n\n${centerText}\n\n` +
-            "ولو عايز مركز معين أو محافظة معينة، اكتب اسم المحافظة.",
-        });
-      }
-
-      // ======================================================
-      // Governorate / city center search
-      // ======================================================
-
-      const governorates = [
-        "الشرقية",
-        "القاهرة",
-        "القليوبية",
-        "الجيزة",
-        "الإسكندرية",
-        "الدقهلية",
-        "الغربية",
-        "المنوفية",
-        "البحيرة",
-        "بورسعيد",
-        "الإسماعيلية",
-        "السويس",
-        "الفيوم",
-        "بني سويف",
-        "المنيا",
-        "أسيوط",
-        "سوهاج",
-        "قنا",
-        "الأقصر",
-        "أسوان",
-      ];
 
       const matchedGovernorate =
-        governorates.find(
-          (governorate) =>
-            text.includes(
-              normalizeText(
-                governorate
-              )
-            )
+        getMatchedGovernorate(
+          text
+        );
+
+      const askingForCenter =
+        text.includes(
+          "مركز دم"
+        ) ||
+        text.includes(
+          "مراكز الدم"
+        ) ||
+        text.includes(
+          "بنك دم"
+        ) ||
+        text.includes(
+          "بنوك الدم"
+        ) ||
+        text.includes(
+          "مركز للتبرع"
+        ) ||
+        text.includes(
+          "مراكز للتبرع"
+        ) ||
+        (
+          text.includes("مركز") &&
+          text.includes("دم")
         );
 
       if (
         matchedGovernorate &&
-        (
-          text.includes("مركز") ||
-          text.includes("بنك") ||
-          text.includes("دم")
-        )
+        askingForCenter
       ) {
         const centers =
           findCenters(
@@ -375,22 +473,40 @@ router.post(
           });
         }
 
-        const centerText =
-          centers
-            .map(
-              (
-                center,
-                index
-              ) =>
-                `${index + 1}. ${getCenterInfo(
-                  center
-                )}`
-            )
-            .join("\n\n");
+        return res.json({
+          reply:
+            formatCentersReply(
+              centers,
+              `🏥 المراكز المسجلة في ${matchedGovernorate}:`
+            ),
+        });
+      }
+
+      // ======================================================
+      // Blood centers - general
+      // ======================================================
+
+      if (
+        askingForCenter
+      ) {
+        const centers =
+          findCenters();
+
+        if (!centers.length) {
+          return res.json({
+            reply:
+              "مش لاقي مراكز دم متاحة حاليًا في البيانات.",
+          });
+        }
 
         return res.json({
           reply:
-            `المراكز المسجلة في ${matchedGovernorate}:\n\n${centerText}`,
+            `عندنا حاليًا ${bloodCenters.length} مركز/بنك دم مسجل.\n\n` +
+            `دي بعض المراكز المتاحة:\n\n` +
+            formatCentersReply(
+              centers
+            ) +
+            "\n\nولو عايز مركز معين أو محافظة معينة، اكتب اسم المحافظة.",
         });
       }
 
@@ -398,9 +514,22 @@ router.post(
       // Donors
       // ======================================================
 
+      const askingForDonor =
+        text.includes(
+          "متبرع"
+        ) ||
+        text.includes(
+          "متبرعين"
+        ) ||
+        text.includes(
+          "متبرع مناسب"
+        ) ||
+        text.includes(
+          "دونر"
+        );
+
       if (
-        text.includes("متبرع") ||
-        text.includes("متبرعين")
+        askingForDonor
       ) {
         const available =
           getAvailableDonorsCount();
@@ -408,7 +537,7 @@ router.post(
         return res.json({
           reply:
             `حاليًا عندنا ${available} متبرع متاح في بيانات النظام.\n\n` +
-            "ولو عايز أبحث لك عن متبرع مناسب، محتاج أعرف فصيلة الدم، وممكن كمان الموقع لو متاح.",
+            "ولو عايز أبحث لك عن متبرع مناسب، اكتبلي فصيلة الدم المطلوبة، وممكن كمان تقول المحافظة أو الموقع لو متاح.",
         });
       }
 
@@ -416,7 +545,7 @@ router.post(
       // Blood requests
       // ======================================================
 
-      if (
+      const askingForBlood =
         text.includes(
           "طلب دم"
         ) ||
@@ -425,14 +554,23 @@ router.post(
         ) ||
         text.includes(
           "عايز دم"
-        )
+        ) ||
+        text.includes(
+          "محتاج فصيلة"
+        ) ||
+        text.includes(
+          "طلب فصيلة"
+        );
+
+      if (
+        askingForBlood
       ) {
         const activeRequests =
           getActiveBloodRequests();
 
         return res.json({
           reply:
-            `تقدر تعمل طلب دم من قسم التبرع بالدم.\n\n` +
+            "🩸 تقدر تعمل طلب دم من قسم التبرع بالدم.\n\n" +
             `حاليًا يوجد ${activeRequests.length} طلب دم عام نشط في النظام.\n\n` +
             "لو عايز تعمل طلب جديد، ادخل على قسم طلب الدم وحدد فصيلة الدم والمستشفى ودرجة الاستعجال.",
         });
@@ -443,10 +581,21 @@ router.post(
       // ======================================================
 
       if (
-        text.includes("موعد") ||
-        text.includes("احجز") ||
-        text.includes("حجز") ||
-        text.includes("تبرع")
+        text.includes(
+          "موعد"
+        ) ||
+        text.includes(
+          "احجز"
+        ) ||
+        text.includes(
+          "حجز"
+        ) ||
+        text.includes(
+          "تبرع"
+        ) ||
+        text.includes(
+          "اتبرع"
+        )
       ) {
         return res.json({
           reply:
@@ -456,37 +605,36 @@ router.post(
       }
 
       // ======================================================
-      // Medicines
+      // Medicines - explicit medicine request
       // ======================================================
 
+      const askingForMedicine =
+        text.includes(
+          "دواء"
+        ) ||
+        text.includes(
+          "أدوية"
+        ) ||
+        text.includes(
+          "ادوية"
+        ) ||
+        text.includes(
+          "دوا"
+        ) ||
+        text.includes(
+          "علاج"
+        ) ||
+        text.includes(
+          "دواء اسمه"
+        );
+
       if (
-        text.includes("دواء") ||
-        text.includes("أدوية") ||
-        text.includes("دواء اسمه")
+        askingForMedicine
       ) {
         const medicineWords =
-          text
-            .replace(
-              "عايز أبحث عن دواء",
-              ""
-            )
-            .replace(
-              "عايز ابحث عن دواء",
-              ""
-            )
-            .replace(
-              "عايز دواء",
-              ""
-            )
-            .replace(
-              "دواء اسمه",
-              ""
-            )
-            .replace(
-              "دواء",
-              ""
-            )
-            .trim();
+          cleanMedicineQuery(
+            text
+          );
 
         if (medicineWords) {
           const results =
@@ -498,7 +646,7 @@ router.post(
             return res.json({
               reply:
                 `مش لاقي دواء باسم "${medicineWords}" في البيانات الحالية.\n\n` +
-                "ممكن تجرب كتابة اسم الدواء بشكل مختلف.",
+                "ممكن تجرب كتابة اسم الدواء بشكل مختلف أو تكتب اسم المادة الفعالة لو تعرفها.",
             });
           }
 
@@ -516,23 +664,105 @@ router.post(
 
                   const category =
                     medicine.category
-                      ? `\nالفئة: ${medicine.category}`
+                      ? `\n💊 الفئة: ${medicine.category}`
                       : "";
 
-                  return `${index + 1}. ${name}${category}`;
+                  const quantity =
+                    medicine.quantity
+                      ? `\n📦 الكمية: ${medicine.quantity}`
+                      : "";
+
+                  const expiry =
+                    medicine.expiry
+                      ? `\n📅 الصلاحية: ${medicine.expiry}`
+                      : "";
+
+                  const donor =
+                    medicine.donor
+                      ? `\n🏪 المصدر: ${medicine.donor}`
+                      : "";
+
+                  return (
+                    `${index + 1}. ${name}` +
+                    category +
+                    quantity +
+                    expiry +
+                    donor
+                  );
                 }
               )
               .join("\n\n");
 
           return res.json({
             reply:
-              `لقيت لك ${results.length} نتيجة:\n\n${medicineText}`,
+              `💊 لقيت لك ${results.length} نتيجة:\n\n${medicineText}`,
           });
         }
 
         return res.json({
           reply:
             "💊 اكتبلي اسم الدواء اللي بتدور عليه، وأنا هبحث عنه في بيانات الأدوية الموجودة عندنا.",
+        });
+      }
+
+      // ======================================================
+      // Direct medicine name search
+      // ======================================================
+
+      const directMedicineResults =
+        getMedicineResultsFromText(
+          text
+        );
+
+      if (
+        directMedicineResults.length
+      ) {
+        const medicineText =
+          directMedicineResults
+            .map(
+              (
+                medicine,
+                index
+              ) => {
+                const name =
+                  medicine.name ||
+                  medicine.genericName ||
+                  "دواء";
+
+                const category =
+                  medicine.category
+                    ? `\n💊 الفئة: ${medicine.category}`
+                    : "";
+
+                const quantity =
+                  medicine.quantity
+                    ? `\n📦 الكمية: ${medicine.quantity}`
+                    : "";
+
+                const expiry =
+                  medicine.expiry
+                    ? `\n📅 الصلاحية: ${medicine.expiry}`
+                    : "";
+
+                const donor =
+                  medicine.donor
+                    ? `\n🏪 المصدر: ${medicine.donor}`
+                    : "";
+
+                return (
+                  `${index + 1}. ${name}` +
+                  category +
+                  quantity +
+                  expiry +
+                  donor
+                );
+              }
+            )
+            .join("\n\n");
+
+        return res.json({
+          reply:
+            `💊 لقيت لك ${directMedicineResults.length} نتيجة:\n\n${medicineText}`,
         });
       }
 
@@ -546,6 +776,9 @@ router.post(
         ) ||
         text.includes(
           "المستشفيات"
+        ) ||
+        text.includes(
+          "مستشفيات"
         )
       ) {
         const hospitalList =
@@ -583,7 +816,7 @@ router.post(
 
         return res.json({
           reply:
-            `دي بعض المستشفيات المسجلة عندنا:\n\n${hospitalText}`,
+            `🏨 دي بعض المستشفيات المسجلة عندنا:\n\n${hospitalText}`,
         });
       }
 
@@ -600,6 +833,9 @@ router.post(
         ) ||
         text.includes(
           "انا مين"
+        ) ||
+        text.includes(
+          "مين انا"
         )
       ) {
         if (!user) {
@@ -617,6 +853,38 @@ router.post(
       }
 
       // ======================================================
+      // General questions about Nabd Al-Amal
+      // ======================================================
+
+      if (
+        text.includes(
+          "نبض الامل"
+        ) ||
+        text.includes(
+          "نبض الأمل"
+        ) ||
+        text.includes(
+          "الابلكيشن"
+        ) ||
+        text.includes(
+          "التطبيق"
+        ) ||
+        text.includes(
+          "الموقع"
+        )
+      ) {
+        return res.json({
+          reply:
+            "🌷 نبض الأمل منصة لمساعدة المرضى والمتبرعين من خلال:\n\n" +
+            "🩸 طلب الدم والبحث عن متبرعين\n" +
+            "🏥 الوصول إلى مراكز وبنوك الدم\n" +
+            "💊 البحث عن الأدوية المتاحة\n" +
+            "📅 حجز مواعيد التبرع\n\n" +
+            "قولي محتاج تعمل إيه وأنا أساعدك.",
+        });
+      }
+
+      // ======================================================
       // Default
       // ======================================================
 
@@ -629,7 +897,12 @@ router.post(
           "🏥 مراكز وبنوك الدم\n" +
           "💊 الأدوية\n" +
           "📅 حجز موعد للتبرع\n\n" +
-          "جرب تكتب طلبك بشكل أوضح وأنا هساعدك.",
+          "مثلاً اكتب:\n" +
+          "• تاموكسيفين\n" +
+          "• عايز دواء للسكر\n" +
+          "• مراكز الدم في الشرقية\n" +
+          "• عايز أبحث عن متبرع O+\n" +
+          "• عايز أعمل طلب دم",
       });
     } catch (error) {
       console.error(
