@@ -6,6 +6,7 @@ import medicineRoutes from "./routes/medicine.js";
 import notificationRoutes from "./routes/notifications.js";
 import userRoutes from "./routes/users.js";
 import authRoutes from "./routes/auth.js";
+import chatRoutes from "./routes/chat.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +36,8 @@ app.use(
 app.use("/api/users", userRoutes);
 
 app.use("/api/auth", authRoutes);
+
+app.use("/api/chat", chatRoutes);
 
 // =========================
 // Start Server
