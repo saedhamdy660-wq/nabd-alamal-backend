@@ -2,6 +2,9 @@ import express from "express";
 
 import {
   medicalJoinRequests,
+  hospitals,
+  pharmacies,
+  bloodCenters,
   saveStore,
 } from "../data/store.js";
 
@@ -12,6 +15,25 @@ const router = express.Router();
 // ============================================================
 
 function generateId(prefix = "mj") {
+  return (
+    prefix +
+    Date.now() +
+    Math.floor(
+      Math.random() * 1000
+    )
+  );
+}
+
+function generateEntityId(type) {
+  const prefixMap = {
+    hospital: "h",
+    pharmacy: "p",
+    blood_center: "bc",
+  };
+
+  const prefix =
+    prefixMap[type] || "medical";
+
   return (
     prefix +
     Date.now() +
@@ -40,10 +62,6 @@ router.post(
       city,
     } = req.body;
 
-    // ========================================================
-    // التحقق من نوع الجهة
-    // ========================================================
-
     const allowedTypes = [
       "hospital",
       "pharmacy",
@@ -60,10 +78,6 @@ router.post(
       });
     }
 
-    // ========================================================
-    // البيانات الأساسية
-    // ========================================================
-
     if (
       !name ||
       !email ||
@@ -75,10 +89,6 @@ router.post(
           "اسم الجهة والبريد الإلكتروني ورقم الهاتف ورقم الترخيص مطلوبة",
       });
     }
-
-    // ========================================================
-    // تنظيف البيانات
-    // ========================================================
 
     const cleanName =
       String(name).trim();
@@ -97,10 +107,10 @@ router.post(
       ).trim();
 
     // ========================================================
-    // منع وجود طلب آخر لنفس البريد
+    // منع وجود طلب معلق بنفس البريد
     // ========================================================
 
-    const existingRequest =
+    const existingPendingRequest =
       medicalJoinRequests.find(
         (item) =>
           item.email ===
@@ -109,12 +119,45 @@ router.post(
             "pending"
       );
 
-    if (existingRequest) {
+    if (
+      existingPendingRequest
+    ) {
       return res.status(409).json({
         error:
           "يوجد بالفعل طلب انضمام قيد المراجعة بهذا البريد الإلكتروني",
         request:
-          existingRequest,
+          existingPendingRequest,
+      });
+    }
+
+    // ========================================================
+    // منع تسجيل جهة معتمدة بنفس البريد
+    // ========================================================
+
+    const allApprovedEntities = [
+      ...hospitals,
+      ...pharmacies,
+      ...bloodCenters,
+    ];
+
+    const existingApprovedEntity =
+      allApprovedEntities.find(
+        (item) =>
+          item.email &&
+          String(item.email)
+            .trim()
+            .toLowerCase() ===
+            cleanEmail
+      );
+
+    if (
+      existingApprovedEntity
+    ) {
+      return res.status(409).json({
+        error:
+          "هذه الجهة مسجلة ومعتمدة بالفعل",
+        entity:
+          existingApprovedEntity,
       });
     }
 
@@ -169,19 +212,11 @@ router.post(
         now.toISOString(),
     };
 
-    // ========================================================
-    // حفظ الطلب
-    // ========================================================
-
     medicalJoinRequests.push(
       request
     );
 
     saveStore();
-
-    // ========================================================
-    // Response
-    // ========================================================
 
     res.status(201).json({
       message:
@@ -209,7 +244,6 @@ router.get(
       ...medicalJoinRequests,
     ];
 
-    // فلترة بالحالة
     if (status) {
       result =
         result.filter(
@@ -219,7 +253,6 @@ router.get(
         );
     }
 
-    // فلترة بنوع الجهة
     if (type) {
       result =
         result.filter(
@@ -229,7 +262,6 @@ router.get(
         );
     }
 
-    // الأحدث أولًا
     result.sort(
       (a, b) =>
         new Date(
@@ -248,7 +280,7 @@ router.get(
 
 // ============================================================
 // GET /api/medical/join-requests/:id
-// عرض طلب انضمام محدد
+// عرض طلب محدد
 // ============================================================
 
 router.get(
@@ -270,6 +302,306 @@ router.get(
 
     res.json(
       request
+    );
+  }
+);
+
+// ============================================================
+// POST /api/medical/join-requests/:id/approve
+// الموافقة على طلب جهة طبية
+// ============================================================
+
+router.post(
+  "/join-requests/:id/approve",
+  (req, res) => {
+    const request =
+      medicalJoinRequests.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "طلب الانضمام غير موجود",
+      });
+    }
+
+    if (
+      request.status !==
+      "pending"
+    ) {
+      return res.status(400).json({
+        error:
+          "لا يمكن مراجعة هذا الطلب مرة أخرى",
+        request,
+      });
+    }
+
+    // ========================================================
+    // التأكد أن الجهة لم تتم إضافتها من قبل
+    // ========================================================
+
+    const entityLists = {
+      hospital:
+        hospitals,
+
+      pharmacy:
+        pharmacies,
+
+      blood_center:
+        bloodCenters,
+    };
+
+    const targetList =
+      entityLists[
+        request.type
+      ];
+
+    if (!targetList) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة الطبية غير صحيح",
+      });
+    }
+
+    const alreadyExists =
+      targetList.find(
+        (item) =>
+          (
+            item.email &&
+            request.email &&
+            String(
+              item.email
+            )
+              .trim()
+              .toLowerCase() ===
+              String(
+                request.email
+              )
+                .trim()
+                .toLowerCase()
+          ) ||
+          (
+            item.name &&
+            String(
+              item.name
+            )
+              .trim()
+              .toLowerCase() ===
+              String(
+                request.name
+              )
+                .trim()
+                .toLowerCase()
+          )
+      );
+
+    if (
+      alreadyExists
+    ) {
+      return res.status(409).json({
+        error:
+          "هذه الجهة موجودة بالفعل في القائمة الرسمية",
+        entity:
+          alreadyExists,
+      });
+    }
+
+    // ========================================================
+    // إنشاء الجهة الرسمية
+    // ========================================================
+
+    const entity = {
+      id:
+        generateEntityId(
+          request.type
+        ),
+
+      name:
+        request.name,
+
+      email:
+        request.email,
+
+      phone:
+        request.phone,
+
+      licenseNumber:
+        request.licenseNumber,
+
+      address:
+        request.address,
+
+      governorate:
+        request.governorate,
+
+      city:
+        request.city,
+
+      verified:
+        true,
+
+      createdAt:
+        new Date().toISOString(),
+
+      joinRequestId:
+        request.id,
+    };
+
+    // ========================================================
+    // إضافة الجهة للقائمة المناسبة
+    // ========================================================
+
+    targetList.push(
+      entity
+    );
+
+    // ========================================================
+    // تحديث حالة طلب الانضمام
+    // ========================================================
+
+    request.status =
+      "approved";
+
+    request.updatedAt =
+      new Date().toISOString();
+
+    request.reviewedAt =
+      new Date().toISOString();
+
+    request.entityId =
+      entity.id;
+
+    saveStore();
+
+    res.json({
+      message:
+        "تمت الموافقة على الجهة وإضافتها إلى القائمة الرسمية",
+
+      request,
+
+      entity,
+    });
+  }
+);
+
+// ============================================================
+// POST /api/medical/join-requests/:id/reject
+// رفض طلب جهة طبية
+// ============================================================
+
+router.post(
+  "/join-requests/:id/reject",
+  (req, res) => {
+    const request =
+      medicalJoinRequests.find(
+        (item) =>
+          item.id ===
+          req.params.id
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "طلب الانضمام غير موجود",
+      });
+    }
+
+    if (
+      request.status !==
+      "pending"
+    ) {
+      return res.status(400).json({
+        error:
+          "لا يمكن مراجعة هذا الطلب مرة أخرى",
+        request,
+      });
+    }
+
+    const rejectionReason =
+      req.body.rejectionReason
+        ? String(
+            req.body
+              .rejectionReason
+          ).trim()
+        : "";
+
+    request.status =
+      "rejected";
+
+    request.rejectionReason =
+      rejectionReason;
+
+    request.updatedAt =
+      new Date().toISOString();
+
+    request.reviewedAt =
+      new Date().toISOString();
+
+    saveStore();
+
+    res.json({
+      message:
+        "تم رفض طلب الانضمام",
+
+      request,
+    });
+  }
+);
+
+// ============================================================
+// GET /api/medical/entities
+// عرض الجهات الطبية الرسمية المعتمدة
+// ============================================================
+
+router.get(
+  "/entities",
+  (req, res) => {
+    res.json({
+      hospitals,
+      pharmacies,
+      bloodCenters,
+    });
+  }
+);
+
+// ============================================================
+// GET /api/medical/entities/hospitals
+// ============================================================
+
+router.get(
+  "/entities/hospitals",
+  (req, res) => {
+    res.json(
+      hospitals
+    );
+  }
+);
+
+// ============================================================
+// GET /api/medical/entities/pharmacies
+// ============================================================
+
+router.get(
+  "/entities/pharmacies",
+  (req, res) => {
+    res.json(
+      pharmacies
+    );
+  }
+);
+
+// ============================================================
+// GET /api/medical/entities/blood-centers
+// ============================================================
+
+router.get(
+  "/entities/blood-centers",
+  (req, res) => {
+    res.json(
+      bloodCenters
     );
   }
 );
