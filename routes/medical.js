@@ -5,6 +5,8 @@ import {
   hospitals,
   pharmacies,
   bloodCenters,
+  bloodRequests,
+  myRequests,
   saveStore,
 } from "../data/store.js";
 
@@ -41,6 +43,210 @@ function generateEntityId(type) {
       Math.random() * 1000
     )
   );
+}
+
+// ============================================================
+// Find medical entity
+// ============================================================
+
+function findMedicalEntity(
+  medicalEntityId
+) {
+  if (!medicalEntityId) {
+    return null;
+  }
+
+  const hospital =
+    hospitals.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (hospital) {
+    return {
+      entity: hospital,
+      type: "hospital",
+    };
+  }
+
+  const pharmacy =
+    pharmacies.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (pharmacy) {
+    return {
+      entity: pharmacy,
+      type: "pharmacy",
+    };
+  }
+
+  const bloodCenter =
+    bloodCenters.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (bloodCenter) {
+    return {
+      entity: bloodCenter,
+      type: "blood_center",
+    };
+  }
+
+  return null;
+}
+
+// ============================================================
+// Get entity type label
+// ============================================================
+
+function getEntityTypeLabel(type) {
+  if (type === "hospital") {
+    return "مستشفى";
+  }
+
+  if (type === "pharmacy") {
+    return "صيدلية";
+  }
+
+  if (type === "blood_center") {
+    return "مركز دم";
+  }
+
+  return "جهة طبية";
+}
+
+// ============================================================
+// Add request timeline
+// ============================================================
+
+function addRequestTimeline(
+  request,
+  status
+) {
+  if (!request) {
+    return;
+  }
+
+  if (!Array.isArray(request.timeline)) {
+    request.timeline = [];
+  }
+
+  request.timeline.push({
+    label:
+      `تم تحديث حالة الطلب إلى: ${status}`,
+
+    time:
+      new Date().toLocaleTimeString(
+        "ar-EG"
+      ),
+
+    done: true,
+  });
+
+  request.updatedAt =
+    new Date().toISOString();
+}
+
+// ============================================================
+// Update matching request in myRequests
+// ============================================================
+
+function syncMyRequest(
+  request
+) {
+  if (!request?.id) {
+    return;
+  }
+
+  const matchingRequest =
+    myRequests.find(
+      (item) =>
+        item.id === request.id
+    );
+
+  if (!matchingRequest) {
+    return;
+  }
+
+  matchingRequest.status =
+    request.status;
+
+  matchingRequest.updatedAt =
+    request.updatedAt ||
+    new Date().toISOString();
+
+  if (
+    Array.isArray(
+      request.timeline
+    )
+  ) {
+    matchingRequest.timeline = [
+      ...request.timeline,
+    ];
+  }
+}
+
+// ============================================================
+// Get requests belonging to medical entity
+// ============================================================
+
+function getMedicalEntityRequests(
+  medicalEntityId,
+  entityType
+) {
+  // ==========================================================
+  // Hospital
+  // ==========================================================
+
+  if (
+    entityType ===
+    "hospital"
+  ) {
+    return bloodRequests.filter(
+      (request) =>
+        request.hospitalId ===
+        medicalEntityId
+    );
+  }
+
+  // ==========================================================
+  // Pharmacy
+  // ==========================================================
+
+  if (
+    entityType ===
+    "pharmacy"
+  ) {
+    return myRequests.filter(
+      (request) =>
+        request.requestType ===
+          "medicine" &&
+        request.pharmacyId ===
+          medicalEntityId
+    );
+  }
+
+  // ==========================================================
+  // Blood Center
+  // ==========================================================
+
+  if (
+    entityType ===
+    "blood_center"
+  ) {
+    return bloodRequests.filter(
+      (request) =>
+        request.requestType ===
+          "blood-bank" &&
+        request.centerId ===
+          medicalEntityId
+    );
+  }
+
+  return [];
 }
 
 // ============================================================
@@ -125,6 +331,7 @@ router.post(
       return res.status(409).json({
         error:
           "يوجد بالفعل طلب انضمام قيد المراجعة بهذا البريد الإلكتروني",
+
         request:
           existingPendingRequest,
       });
@@ -156,6 +363,7 @@ router.post(
       return res.status(409).json({
         error:
           "هذه الجهة مسجلة ومعتمدة بالفعل",
+
         entity:
           existingApprovedEntity,
       });
@@ -335,13 +543,10 @@ router.post(
       return res.status(400).json({
         error:
           "لا يمكن مراجعة هذا الطلب مرة أخرى",
+
         request,
       });
     }
-
-    // ========================================================
-    // التأكد أن الجهة لم تتم إضافتها من قبل
-    // ========================================================
 
     const entityLists = {
       hospital:
@@ -377,11 +582,11 @@ router.post(
             )
               .trim()
               .toLowerCase() ===
-              String(
-                request.email
-              )
-                .trim()
-                .toLowerCase()
+            String(
+              request.email
+            )
+              .trim()
+              .toLowerCase()
           ) ||
           (
             item.name &&
@@ -390,11 +595,11 @@ router.post(
             )
               .trim()
               .toLowerCase() ===
-              String(
-                request.name
-              )
-                .trim()
-                .toLowerCase()
+            String(
+              request.name
+            )
+              .trim()
+              .toLowerCase()
           )
       );
 
@@ -404,14 +609,11 @@ router.post(
       return res.status(409).json({
         error:
           "هذه الجهة موجودة بالفعل في القائمة الرسمية",
+
         entity:
           alreadyExists,
       });
     }
-
-    // ========================================================
-    // إنشاء الجهة الرسمية
-    // ========================================================
 
     const entity = {
       id:
@@ -450,17 +652,9 @@ router.post(
         request.id,
     };
 
-    // ========================================================
-    // إضافة الجهة للقائمة المناسبة
-    // ========================================================
-
     targetList.push(
       entity
     );
-
-    // ========================================================
-    // تحديث حالة طلب الانضمام
-    // ========================================================
 
     request.status =
       "approved";
@@ -516,6 +710,7 @@ router.post(
       return res.status(400).json({
         error:
           "لا يمكن مراجعة هذا الطلب مرة أخرى",
+
         request,
       });
     }
@@ -553,7 +748,7 @@ router.post(
 
 // ============================================================
 // GET /api/medical/entities
-// عرض الجهات الطبية الرسمية المعتمدة
+// الجهات الطبية الرسمية المعتمدة
 // ============================================================
 
 router.get(
@@ -603,6 +798,369 @@ router.get(
     res.json(
       bloodCenters
     );
+  }
+);
+
+// ============================================================
+// GET /api/medical/:entityType/:entityId/requests
+//
+// عرض الطلبات الخاصة بالجهة الطبية
+//
+// hospital:
+//     طلبات الدم المرتبطة بالمستشفى
+//
+// pharmacy:
+//     طلبات الأدوية المرتبطة بالصيدلية
+//
+// blood_center:
+//     طلبات بنك الدم المرتبطة بمركز الدم
+// ============================================================
+
+router.get(
+  "/:entityType/:entityId/requests",
+  (req, res) => {
+    const {
+      entityType,
+      entityId,
+    } = req.params;
+
+    const allowedTypes = [
+      "hospital",
+      "pharmacy",
+      "blood_center",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        entityType
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة الطبية غير صحيح",
+      });
+    }
+
+    const medicalEntity =
+      findMedicalEntity(
+        entityId
+      );
+
+    if (!medicalEntity) {
+      return res.status(404).json({
+        error:
+          "الجهة الطبية غير موجودة",
+      });
+    }
+
+    if (
+      medicalEntity.type !==
+      entityType
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة لا يتطابق مع الجهة المطلوبة",
+      });
+    }
+
+    const requests =
+      getMedicalEntityRequests(
+        entityId,
+        entityType
+      );
+
+    const sortedRequests = [
+      ...requests,
+    ].sort(
+      (a, b) =>
+        new Date(
+          b.createdAt ||
+            b.date ||
+            0
+        ).getTime() -
+        new Date(
+          a.createdAt ||
+            a.date ||
+            0
+        ).getTime()
+    );
+
+    res.json({
+      entity: {
+        id:
+          medicalEntity.entity.id,
+
+        name:
+          medicalEntity.entity.name,
+
+        type:
+          entityType,
+
+        typeLabel:
+          getEntityTypeLabel(
+            entityType
+          ),
+      },
+
+      requests:
+        sortedRequests,
+
+      total:
+        sortedRequests.length,
+    });
+  }
+);
+
+// ============================================================
+// GET /api/medical/:entityType/:entityId/requests/:requestId
+//
+// عرض طلب واحد للجهة الطبية
+// ============================================================
+
+router.get(
+  "/:entityType/:entityId/requests/:requestId",
+  (req, res) => {
+    const {
+      entityType,
+      entityId,
+      requestId,
+    } = req.params;
+
+    const allowedTypes = [
+      "hospital",
+      "pharmacy",
+      "blood_center",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        entityType
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة الطبية غير صحيح",
+      });
+    }
+
+    const medicalEntity =
+      findMedicalEntity(
+        entityId
+      );
+
+    if (!medicalEntity) {
+      return res.status(404).json({
+        error:
+          "الجهة الطبية غير موجودة",
+      });
+    }
+
+    if (
+      medicalEntity.type !==
+      entityType
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة لا يتطابق مع الجهة المطلوبة",
+      });
+    }
+
+    const requests =
+      getMedicalEntityRequests(
+        entityId,
+        entityType
+      );
+
+    const request =
+      requests.find(
+        (item) =>
+          item.id ===
+          requestId
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "الطلب غير موجود أو لا يتبع هذه الجهة الطبية",
+      });
+    }
+
+    res.json(
+      request
+    );
+  }
+);
+
+// ============================================================
+// POST /api/medical/:entityType/:entityId/requests/:requestId/status
+//
+// تحديث حالة الطلب من الجهة الطبية
+//
+// Body:
+// {
+//   "status": "مكتمل"
+// }
+// ============================================================
+
+router.post(
+  "/:entityType/:entityId/requests/:requestId/status",
+  (req, res) => {
+    const {
+      entityType,
+      entityId,
+      requestId,
+    } = req.params;
+
+    const {
+      status,
+    } = req.body;
+
+    const allowedTypes = [
+      "hospital",
+      "pharmacy",
+      "blood_center",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        entityType
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة الطبية غير صحيح",
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        error:
+          "حالة الطلب مطلوبة",
+      });
+    }
+
+    const medicalEntity =
+      findMedicalEntity(
+        entityId
+      );
+
+    if (!medicalEntity) {
+      return res.status(404).json({
+        error:
+          "الجهة الطبية غير موجودة",
+      });
+    }
+
+    if (
+      medicalEntity.type !==
+      entityType
+    ) {
+      return res.status(400).json({
+        error:
+          "نوع الجهة لا يتطابق مع الجهة المطلوبة",
+      });
+    }
+
+    const requests =
+      getMedicalEntityRequests(
+        entityId,
+        entityType
+      );
+
+    const request =
+      requests.find(
+        (item) =>
+          item.id ===
+          requestId
+      );
+
+    if (!request) {
+      return res.status(404).json({
+        error:
+          "الطلب غير موجود أو لا يتبع هذه الجهة الطبية",
+      });
+    }
+
+    // ========================================================
+    // الحالات المسموح بها لكل نوع
+    // ========================================================
+
+    const allowedStatuses = {
+      hospital: [
+        "قيد الانتظار",
+        "قيد التنفيذ",
+        "جاري التنفيذ",
+        "تم القبول",
+        "المتبرع في طريقه إلى المستشفى",
+        "وصل إلى المستشفى",
+        "تم التبرع",
+        "مكتمل",
+        "تم الرفض",
+        "تم الإلغاء",
+      ],
+
+      pharmacy: [
+        "قيد المراجعة",
+        "جاري التجهيز",
+        "في انتظار الاستلام",
+        "مكتمل",
+        "تم الرفض",
+        "تم الإلغاء",
+      ],
+
+      blood_center: [
+        "قيد المراجعة",
+        "قيد التجهيز",
+        "مكتمل",
+        "تم الرفض",
+        "تم الإلغاء",
+      ],
+    };
+
+    if (
+      !allowedStatuses[
+        entityType
+      ].includes(status)
+    ) {
+      return res.status(400).json({
+        error:
+          "حالة الطلب غير مسموح بها لهذا النوع من الجهات الطبية",
+
+        allowedStatuses:
+          allowedStatuses[
+            entityType
+          ],
+      });
+    }
+
+    // ========================================================
+    // تحديث الحالة
+    // ========================================================
+
+    request.status =
+      status;
+
+    addRequestTimeline(
+      request,
+      status
+    );
+
+    // ========================================================
+    // مزامنة طلب المستخدم
+    // ========================================================
+
+    syncMyRequest(
+      request
+    );
+
+    saveStore();
+
+    res.json({
+      message:
+        "تم تحديث حالة الطلب بنجاح",
+
+      request,
+    });
   }
 );
 
