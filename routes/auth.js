@@ -4,6 +4,9 @@ import { OAuth2Client } from "google-auth-library";
 import {
   users,
   donors,
+  hospitals,
+  pharmacies,
+  bloodCenters,
   saveStore,
 } from "../data/store.js";
 
@@ -56,192 +59,316 @@ function generateDonorId() {
 }
 
 // ============================================================
+// Medical Entity Helper
+// ============================================================
+
+function findMedicalEntity(
+  medicalEntityId
+) {
+  if (!medicalEntityId) {
+    return null;
+  }
+
+  const hospital =
+    hospitals.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (hospital) {
+    return {
+      entity: hospital,
+      type: "hospital",
+    };
+  }
+
+  const pharmacy =
+    pharmacies.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (pharmacy) {
+    return {
+      entity: pharmacy,
+      type: "pharmacy",
+    };
+  }
+
+  const bloodCenter =
+    bloodCenters.find(
+      (item) =>
+        item.id === medicalEntityId
+    );
+
+  if (bloodCenter) {
+    return {
+      entity: bloodCenter,
+      type: "blood_center",
+    };
+  }
+
+  return null;
+}
+
+// ============================================================
 // Register
 // ============================================================
 
-router.post("/register", (req, res) => {
-  const {
-    name,
-    email,
-    phone,
-    nationalId,
-    password,
-    accountType,
-    bloodType,
-    lastDonation,
-    chronicDisease,
-    lat,
-    lng,
-  } = req.body;
+router.post(
+  "/register",
+  (req, res) => {
+    const {
+      name,
+      email,
+      phone,
+      nationalId,
+      password,
+      accountType,
+      bloodType,
+      lastDonation,
+      chronicDisease,
+      lat,
+      lng,
+      medicalEntityId,
+    } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({
-      error:
-        "الاسم والبريد الإلكتروني وكلمة المرور مطلوبون",
-    });
-  }
+    if (
+      !name ||
+      !email ||
+      !password
+    ) {
+      return res.status(400).json({
+        error:
+          "الاسم والبريد الإلكتروني وكلمة المرور مطلوبون",
+      });
+    }
 
-  const cleanEmail =
-    email.trim().toLowerCase();
+    const cleanEmail =
+      email.trim().toLowerCase();
 
-  // منع تكرار البريد الإلكتروني
-  if (
-    users.find(
-      (u) =>
-        u.email.toLowerCase() ===
-        cleanEmail
-    )
-  ) {
-    return res.status(409).json({
-      error:
-        "يوجد حساب بهذا البريد الإلكتروني بالفعل",
-    });
-  }
+    // ==========================================================
+    // التحقق من الجهة الطبية
+    // ==========================================================
 
-  const latitude = Number(lat);
-  const longitude = Number(lng);
+    let selectedMedicalEntity =
+      null;
 
-  const newUser = {
-    id: generateUserId(),
+    let selectedMedicalEntityType =
+      "";
 
-    name: name.trim(),
+    if (
+      accountType === "medical"
+    ) {
+      if (!medicalEntityId) {
+        return res.status(400).json({
+          error:
+            "يجب اختيار الجهة الطبية التي ينتمي إليها الحساب",
+        });
+      }
 
-    email: cleanEmail,
+      const medicalEntity =
+        findMedicalEntity(
+          medicalEntityId
+        );
 
-    phone: phone || "",
+      if (!medicalEntity) {
+        return res.status(404).json({
+          error:
+            "الجهة الطبية المختارة غير موجودة أو غير معتمدة",
+        });
+      }
 
-    nationalId:
-      nationalId || "",
+      selectedMedicalEntity =
+        medicalEntity.entity;
 
-    password,
+      selectedMedicalEntityType =
+        medicalEntity.type;
+    }
 
-    accountType:
-      accountType || "user",
+    // منع تكرار البريد الإلكتروني
+    if (
+      users.find(
+        (u) =>
+          u.email.toLowerCase() ===
+          cleanEmail
+      )
+    ) {
+      return res.status(409).json({
+        error:
+          "يوجد حساب بهذا البريد الإلكتروني بالفعل",
+      });
+    }
 
-    bloodType:
-      accountType === "donor"
-        ? bloodType || ""
-        : "",
+    const latitude = Number(lat);
+    const longitude = Number(lng);
 
-    lastDonation:
-      accountType === "donor"
-        ? lastDonation || ""
-        : "",
+    const newUser = {
+      id: generateUserId(),
 
-    chronicDisease:
-      accountType === "donor"
-        ? Boolean(chronicDisease)
-        : false,
+      name: name.trim(),
 
-    lat: Number.isFinite(latitude)
-      ? latitude
-      : 30.0444,
+      email: cleanEmail,
 
-    lng: Number.isFinite(longitude)
-      ? longitude
-      : 31.2357,
+      phone: phone || "",
 
-    locationEnabled:
-      Number.isFinite(latitude) &&
-      Number.isFinite(longitude),
+      nationalId:
+        nationalId || "",
 
-    phoneVerified: false,
+      password,
 
-    identityVerified: false,
-
-    verificationStatus:
-      "pending",
-  };
-
-  users.push(newUser);
-
-  // ==========================================================
-  // إنشاء متبرع حقيقي لو الحساب متبرع
-  // ==========================================================
-
-  if (accountType === "donor") {
-    donors.push({
-      id: generateDonorId(),
-
-      userId: newUser.id,
-
-      name: newUser.name,
+      accountType:
+        accountType || "user",
 
       bloodType:
-        newUser.bloodType,
-
-      distanceKm: 0,
-
-      lat: newUser.lat,
-
-      lng: newUser.lng,
-
-      donationsCount: 0,
+        accountType === "donor"
+          ? bloodType || ""
+          : "",
 
       lastDonation:
-        newUser.lastDonation,
+        accountType === "donor"
+          ? lastDonation || ""
+          : "",
 
-      verified: false,
-    });
+      chronicDisease:
+        accountType === "donor"
+          ? Boolean(chronicDisease)
+          : false,
+
+      // ========================================================
+      // Medical Entity
+      // ========================================================
+
+      medicalEntityId:
+        accountType === "medical"
+          ? selectedMedicalEntity.id
+          : "",
+
+      medicalEntityType:
+        accountType === "medical"
+          ? selectedMedicalEntityType
+          : "",
+
+      lat: Number.isFinite(latitude)
+        ? latitude
+        : 30.0444,
+
+      lng: Number.isFinite(longitude)
+        ? longitude
+        : 31.2357,
+
+      locationEnabled:
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude),
+
+      phoneVerified: false,
+
+      identityVerified: false,
+
+      verificationStatus:
+        "pending",
+    };
+
+    users.push(
+      newUser
+    );
+
+    // ==========================================================
+    // إنشاء متبرع حقيقي لو الحساب متبرع
+    // ==========================================================
+
+    if (
+      accountType === "donor"
+    ) {
+      donors.push({
+        id: generateDonorId(),
+
+        userId: newUser.id,
+
+        name: newUser.name,
+
+        bloodType:
+          newUser.bloodType,
+
+        distanceKm: 0,
+
+        lat: newUser.lat,
+
+        lng: newUser.lng,
+
+        donationsCount: 0,
+
+        lastDonation:
+          newUser.lastDonation,
+
+        verified: false,
+      });
+    }
+
+    // حفظ المستخدم والمتبرع
+    saveStore();
+
+    // عدم إرسال كلمة المرور للـ Frontend
+    const {
+      password: _pw,
+      ...safeUser
+    } = newUser;
+
+    res.status(201).json(
+      safeUser
+    );
   }
-
-  // حفظ المستخدم والمتبرع
-  saveStore();
-
-  // عدم إرسال كلمة المرور للـ Frontend
-  const {
-    password: _pw,
-    ...safeUser
-  } = newUser;
-
-  res.status(201).json(
-    safeUser
-  );
-});
+);
 
 // ============================================================
 // Login
 // ============================================================
 
-router.post("/login", (req, res) => {
-  const {
-    email,
-    password,
-  } = req.body;
+router.post(
+  "/login",
+  (req, res) => {
+    const {
+      email,
+      password,
+    } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({
-      error:
-        "البريد الإلكتروني وكلمة المرور مطلوبان",
-    });
+    if (
+      !email ||
+      !password
+    ) {
+      return res.status(400).json({
+        error:
+          "البريد الإلكتروني وكلمة المرور مطلوبان",
+      });
+    }
+
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    const found = users.find(
+      (u) =>
+        u.email.toLowerCase() ===
+          cleanEmail &&
+        u.password === password
+    );
+
+    if (!found) {
+      return res.status(401).json({
+        error:
+          "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+      });
+    }
+
+    const {
+      password: _pw,
+      ...safeUser
+    } = found;
+
+    res.json(
+      safeUser
+    );
   }
-
-  const cleanEmail =
-    email.trim().toLowerCase();
-
-  const found = users.find(
-    (u) =>
-      u.email.toLowerCase() ===
-        cleanEmail &&
-      u.password === password
-  );
-
-  if (!found) {
-    return res.status(401).json({
-      error:
-        "البريد الإلكتروني أو كلمة المرور غير صحيحة",
-    });
-  }
-
-  const {
-    password: _pw,
-    ...safeUser
-  } = found;
-
-  res.json(
-    safeUser
-  );
-});
+);
 
 // ============================================================
 // Google Login
@@ -262,7 +389,9 @@ router.post(
         });
       }
 
-      if (!process.env.GOOGLE_CLIENT_ID) {
+      if (
+        !process.env.GOOGLE_CLIENT_ID
+      ) {
         console.error(
           "GOOGLE_CLIENT_ID is not configured"
         );
@@ -276,7 +405,8 @@ router.post(
       const ticket =
         await googleClient.verifyIdToken(
           {
-            idToken: credential,
+            idToken:
+              credential,
 
             audience:
               process.env.GOOGLE_CLIENT_ID,
@@ -353,6 +483,10 @@ router.post(
 
           chronicDisease:
             false,
+
+          medicalEntityId: "",
+
+          medicalEntityType: "",
 
           lat: 30.0444,
 
