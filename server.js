@@ -7,6 +7,7 @@ import notificationRoutes from "./routes/notifications.js";
 import userRoutes from "./routes/users.js";
 import authRoutes from "./routes/auth.js";
 import chatRoutes from "./routes/chat.js";
+import medicalRoutes from "./routes/medical.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -38,6 +39,14 @@ app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 
 app.use("/api/chat", chatRoutes);
+
+// =========================
+// Medical Entity Routes
+// =========================
+app.use(
+  "/api/medical",
+  medicalRoutes
+);
 
 // =========================
 // Start Server
