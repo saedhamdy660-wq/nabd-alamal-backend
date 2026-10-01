@@ -148,6 +148,24 @@ router.post(
       email.trim().toLowerCase();
 
     // ==========================================================
+    // منع إنشاء حساب Admin من خلال Signup
+    // ==========================================================
+
+    if (
+      cleanEmail ===
+      String(
+        process.env.ADMIN_EMAIL || ""
+      )
+        .trim()
+        .toLowerCase()
+    ) {
+      return res.status(403).json({
+        error:
+          "لا يمكن إنشاء حساب الإدارة من خلال التسجيل",
+      });
+    }
+
+    // ==========================================================
     // التحقق من الجهة الطبية
     // ==========================================================
 
@@ -186,7 +204,10 @@ router.post(
         medicalEntity.type;
     }
 
+    // ==========================================================
     // منع تكرار البريد الإلكتروني
+    // ==========================================================
+
     if (
       users.find(
         (u) =>
@@ -219,6 +240,8 @@ router.post(
 
       accountType:
         accountType || "user",
+
+      role: "user",
 
       bloodType:
         accountType === "donor"
@@ -305,10 +328,16 @@ router.post(
       });
     }
 
+    // ==========================================================
     // حفظ المستخدم والمتبرع
+    // ==========================================================
+
     saveStore();
 
+    // ==========================================================
     // عدم إرسال كلمة المرور للـ Frontend
+    // ==========================================================
+
     const {
       password: _pw,
       ...safeUser
@@ -345,6 +374,51 @@ router.post(
     const cleanEmail =
       email.trim().toLowerCase();
 
+    // ==========================================================
+    // Admin Login
+    // ==========================================================
+    // حساب الإدارة لا يتم تخزينه داخل users
+    // ولا يمكن إنشاؤه من Signup.
+    //
+    // بيانات الدخول تأتي من Environment Variables:
+    //
+    // ADMIN_EMAIL
+    // ADMIN_PASSWORD
+    // ==========================================================
+
+    const adminEmail =
+      String(
+        process.env.ADMIN_EMAIL || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const adminPassword =
+      String(
+        process.env.ADMIN_PASSWORD || ""
+      );
+
+    if (
+      adminEmail &&
+      adminPassword &&
+      cleanEmail === adminEmail &&
+      password === adminPassword
+    ) {
+      return res.json({
+        id: "admin",
+        name: "مدير النظام",
+        email: adminEmail,
+        accountType: "admin",
+        role: "admin",
+        medicalEntityId: "",
+        medicalEntityType: "",
+      });
+    }
+
+    // ==========================================================
+    // User / Donor / Medical Login
+    // ==========================================================
+
     const found = users.find(
       (u) =>
         u.email.toLowerCase() ===
@@ -359,10 +433,22 @@ router.post(
       });
     }
 
+    // ==========================================================
+    // منع أي مستخدم عادي من استخدام role=admin
+    // ==========================================================
+
+    const safeAccount = {
+      ...found,
+      role:
+        found.role === "admin"
+          ? "user"
+          : found.role || "user",
+    };
+
     const {
       password: _pw,
       ...safeUser
-    } = found;
+    } = safeAccount;
 
     res.json(
       safeUser
@@ -444,6 +530,27 @@ router.post(
       const cleanEmail =
         email.trim().toLowerCase();
 
+      // ========================================================
+      // Google لا ينشئ حساب Admin
+      // ========================================================
+
+      const adminEmail =
+        String(
+          process.env.ADMIN_EMAIL || ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if (
+        adminEmail &&
+        cleanEmail === adminEmail
+      ) {
+        return res.status(403).json({
+          error:
+            "حساب الإدارة يجب تسجيل الدخول إليه باستخدام بيانات الإدارة",
+        });
+      }
+
       let found = users.find(
         (u) =>
           u.email.toLowerCase() ===
@@ -476,6 +583,8 @@ router.post(
 
           accountType:
             "user",
+
+          role: "user",
 
           bloodType: "",
 
@@ -556,11 +665,26 @@ router.post(
         }
       }
 
+      // ========================================================
+      // التأكد أن Google User ليس Admin
+      // ========================================================
+
+      const safeAccount = {
+        ...found,
+        role:
+          found.role === "admin"
+            ? "user"
+            : found.role || "user",
+      };
+
+      // ========================================================
       // عدم إرسال كلمة المرور
+      // ========================================================
+
       const {
         password: _pw,
         ...safeUser
-      } = found;
+      } = safeAccount;
 
       res.json(
         safeUser
